@@ -1,0 +1,168 @@
+{
+  "target": {
+    "resname": "ALM",
+    "resid": null,
+    "chain": null,
+    "matched_residue": "ALMC25"
+  },
+  "fragment_residues": [
+    "HISC24",
+    "ALMC25",
+    "GLYC26"
+  ],
+  "bonds": [
+    {
+      "residue": "HISC24",
+      "atom1": "N",
+      "atom2": "CA",
+      "order": 1,
+      "source": "backbone"
+    },
+    {
+      "residue": "HISC24",
+      "atom1": "CA",
+      "atom2": "C",
+      "order": 1,
+      "source": "backbone"
+    },
+    {
+      "residue": "HISC24",
+      "atom1": "C",
+      "atom2": "O",
+      "order": 2,
+      "source": "backbone"
+    },
+    {
+      "residue": "HISC24",
+      "atom1": "CA",
+      "atom2": "CB",
+      "order": 1,
+      "distance": 1.537,
+      "source": "distance"
+    },
+    {
+      "residue": "HISC24",
+      "atom1": "CB",
+      "atom2": "CG",
+      "order": 1,
+      "distance": 1.501,
+      "source": "distance"
+    },
+    {
+      "residue": "HISC24",
+      "atom1": "CG",
+      "atom2": "CD2",
+      "order": 1,
+      "distance": 1.389,
+      "source": "distance"
+    },
+    {
+      "residue": "HISC24",
+      "atom1": "CG",
+      "atom2": "ND1",
+      "order": 1,
+      "distance": 1.394,
+      "source": "distance"
+    },
+    {
+      "residue": "HISC24",
+      "atom1": "CD2",
+      "atom2": "NE2",
+      "order": 1,
+      "distance": 1.371,
+      "source": "distance"
+    },
+    {
+      "residue": "HISC24",
+      "atom1": "ND1",
+      "atom2": "CE1",
+      "order": 1,
+      "distance": 1.346,
+      "source": "distance"
+    },
+    {
+      "residue": "HISC24",
+      "atom1": "CE1",
+      "atom2": "NE2",
+      "order": 1,
+      "distance": 1.36,
+      "source": "distance"
+    },
+    {
+      "residue": "ALMC25",
+      "atom1": "N",
+      "atom2": "CA",
+      "order": 1,
+      "source": "backbone"
+    },
+    {
+      "residue": "ALMC25",
+      "atom1": "CA",
+      "atom2": "C",
+      "order": 1,
+      "source": "backbone"
+    },
+    {
+      "residue": "ALMC25",
+      "atom1": "C",
+      "atom2": "O",
+      "order": 2,
+      "source": "backbone"
+    },
+    {
+      "residue": "ALMC25",
+      "atom1": "CA",
+      "atom2": "CB",
+      "order": 1,
+      "distance": 1.538,
+      "source": "distance"
+    },
+    {
+      "residue": "ALMC25",
+      "atom1": "CA",
+      "atom2": "C01",
+      "order": 1,
+      "distance": 1.54,
+      "source": "distance"
+    },
+    {
+      "residue": "GLYC26",
+      "atom1": "N",
+      "atom2": "CA",
+      "order": 1,
+      "source": "backbone"
+    },
+    {
+      "residue": "GLYC26",
+      "atom1": "CA",
+      "atom2": "C",
+      "order": 1,
+      "source": "backbone"
+    },
+    {
+      "residue": "GLYC26",
+      "atom1": "C",
+      "atom2": "O",
+      "order": 2,
+      "source": "backbone"
+    },
+    {
+      "residue": "PEPTIDE",
+      "atom1_residue": "HISC24",
+      "atom1": "C",
+      "atom2_residue": "ALMC25",
+      "atom2": "N",
+      "order": 1,
+      "source": "peptide"
+    },
+    {
+      "residue": "PEPTIDE",
+      "atom1_residue": "ALMC25",
+      "atom1": "C",
+      "atom2_residue": "GLYC26",
+      "atom2": "N",
+      "order": 1,
+      "source": "peptide"
+    }
+  ]
+}

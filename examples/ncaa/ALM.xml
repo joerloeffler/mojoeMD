@@ -1,0 +1,34 @@
+<?xml version="1.0" ?>
+<ForceField>
+  <Residues>
+    <Residue name="ALM">
+      <Atom name="N" type="protein-N" charge="-0.55451538"/>
+      <Atom name="CA" type="protein-CX" charge="0.06978462"/>
+      <Atom name="C" type="protein-C" charge="0.64048462"/>
+      <Atom name="O" type="protein-O" charge="-0.61871538"/>
+      <Atom name="CB" type="protein-CT" charge="-0.10621538"/>
+      <Atom name="C01" type="protein-CT" charge="-0.10621538"/>
+      <Atom name="H03" type="protein-HC" charge="0.05808462"/>
+      <Atom name="H04" type="protein-HC" charge="0.05808462"/>
+      <Atom name="H05" type="protein-HC" charge="0.05808462"/>
+      <Atom name="H06" type="protein-HC" charge="0.05808462"/>
+      <Atom name="H07" type="protein-HC" charge="0.05808462"/>
+      <Atom name="H08" type="protein-HC" charge="0.05808462"/>
+      <Atom name="H" type="protein-H" charge="0.32688462"/>
+      <Bond atomName1="N" atomName2="CA"/>
+      <Bond atomName1="N" atomName2="H"/>
+      <Bond atomName1="CA" atomName2="C"/>
+      <Bond atomName1="CA" atomName2="CB"/>
+      <Bond atomName1="CA" atomName2="C01"/>
+      <Bond atomName1="C" atomName2="O"/>
+      <Bond atomName1="CB" atomName2="H03"/>
+      <Bond atomName1="CB" atomName2="H04"/>
+      <Bond atomName1="CB" atomName2="H05"/>
+      <Bond atomName1="C01" atomName2="H06"/>
+      <Bond atomName1="C01" atomName2="H07"/>
+      <Bond atomName1="C01" atomName2="H08"/>
+      <ExternalBond atomName="C"/>
+      <ExternalBond atomName="N"/>
+    </Residue>
+  </Residues>
+</ForceField>

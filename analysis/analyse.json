@@ -1,0 +1,67 @@
+{
+  "topology_pdb": "equilibrated.pdb",
+  "trajectory": "production.dcd",
+  "output_dir": "analysis_out",
+
+  "stride": 10,
+
+  "imaging": {
+    "enable": true,
+    "center": true,
+    "image_molecules": true,
+    "complex_aware": true,
+
+    "small_molecule_aware": false,
+    "small_molecule_selection": "not protein and not water",
+    "small_molecule_anchor_selection": "protein and name CA"
+
+  },
+
+  "alignment": {
+    "enable": true,
+    "selection": "protein and name CA"
+  },
+
+  "strip": {
+    "remove_water": true,
+    "remove_ions": true,
+    "ion_resnames": ["NA", "CL", "K", "MG", "CA", "ZN", "CU", "MN", "FE", "CO"]
+  },
+
+  "bfactor_rmsf": {
+    "enable": true,
+    "atom_selection": "protein and backbone",
+    "per_residue": true,
+    "write_pdb_with_bfactor": true,
+    "bfactor_pdb_out": "bfactor_rmsf_backbone.pdb"
+  },
+
+  "sasa": {
+    "enable": true,
+    "probe_radius_nm": 0.14,
+    "mode": "residue",
+    "write_global_csv": true,
+    "write_residuewise_timeseries_csv": true,
+    "write_residuewise_mean_csv": true
+  },
+  "pca": {
+    "enable": true,
+    "selection": "protein and backbone",
+    "n_components": 10,
+    "subsample": 1,
+    "output_projection_csv": true
+    },
+  
+  "clustering": {
+    "enable": true,
+    "selection": "protein and backbone",
+    "use_pca_space": true,
+    "pca_components_for_clustering": 5,
+    "linkage": "average",
+    "cutoff": 2.0,
+    "subsample": 1,
+    "write_representatives": true,
+    "max_representatives": 20
+  }  
+}
+

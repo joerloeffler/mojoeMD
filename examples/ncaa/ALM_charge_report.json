@@ -1,0 +1,231 @@
+{
+  "resname": "ALM",
+  "heavy_mapping": {
+    "N": {
+      "mol2_name": "N",
+      "mol2_idx": 19,
+      "charge": -0.5549
+    },
+    "CA": {
+      "mol2_name": "CA",
+      "mol2_idx": 20,
+      "charge": 0.0694
+    },
+    "C": {
+      "mol2_name": "C",
+      "mol2_idx": 21,
+      "charge": 0.6401
+    },
+    "O": {
+      "mol2_name": "O",
+      "mol2_idx": 22,
+      "charge": -0.6191
+    },
+    "CB": {
+      "mol2_name": "CB",
+      "mol2_idx": 23,
+      "charge": -0.1066
+    },
+    "C01": {
+      "mol2_name": "C01",
+      "mol2_idx": 24,
+      "charge": -0.1066
+    }
+  },
+  "template_hydrogens": [
+    {
+      "name": "H",
+      "parent": "N"
+    },
+    {
+      "name": "H03",
+      "parent": "CB"
+    },
+    {
+      "name": "H04",
+      "parent": "CB"
+    },
+    {
+      "name": "H05",
+      "parent": "CB"
+    },
+    {
+      "name": "H06",
+      "parent": "C01"
+    },
+    {
+      "name": "H07",
+      "parent": "C01"
+    },
+    {
+      "name": "H08",
+      "parent": "C01"
+    }
+  ],
+  "template_atom_name_by_mol2_idx": {
+    "19": "N",
+    "20": "CA",
+    "21": "C",
+    "22": "O",
+    "23": "CB",
+    "24": "C01",
+    "25": "H03",
+    "26": "H04",
+    "27": "H05",
+    "28": "H06",
+    "29": "H07",
+    "30": "H08",
+    "31": "H"
+  },
+  "template_atoms": [
+    {
+      "name": "N",
+      "type": "protein-N",
+      "charge": -0.5545153846153845,
+      "mol2_idx": 19,
+      "element": "N"
+    },
+    {
+      "name": "CA",
+      "type": "protein-CX",
+      "charge": 0.06978461538461538,
+      "mol2_idx": 20,
+      "element": "C"
+    },
+    {
+      "name": "C",
+      "type": "protein-C",
+      "charge": 0.6404846153846154,
+      "mol2_idx": 21,
+      "element": "C"
+    },
+    {
+      "name": "O",
+      "type": "protein-O",
+      "charge": -0.6187153846153846,
+      "mol2_idx": 22,
+      "element": "O"
+    },
+    {
+      "name": "CB",
+      "type": "protein-CT",
+      "charge": -0.10621538461538463,
+      "mol2_idx": 23,
+      "element": "C"
+    },
+    {
+      "name": "C01",
+      "type": "protein-CT",
+      "charge": -0.10621538461538463,
+      "mol2_idx": 24,
+      "element": "C"
+    },
+    {
+      "name": "H03",
+      "type": "protein-HC",
+      "charge": 0.05808461538461538,
+      "mol2_idx": 25,
+      "element": "H"
+    },
+    {
+      "name": "H04",
+      "type": "protein-HC",
+      "charge": 0.05808461538461538,
+      "mol2_idx": 26,
+      "element": "H"
+    },
+    {
+      "name": "H05",
+      "type": "protein-HC",
+      "charge": 0.05808461538461538,
+      "mol2_idx": 27,
+      "element": "H"
+    },
+    {
+      "name": "H06",
+      "type": "protein-HC",
+      "charge": 0.05808461538461538,
+      "mol2_idx": 28,
+      "element": "H"
+    },
+    {
+      "name": "H07",
+      "type": "protein-HC",
+      "charge": 0.05808461538461538,
+      "mol2_idx": 29,
+      "element": "H"
+    },
+    {
+      "name": "H08",
+      "type": "protein-HC",
+      "charge": 0.05808461538461538,
+      "mol2_idx": 30,
+      "element": "H"
+    },
+    {
+      "name": "H",
+      "type": "protein-H",
+      "charge": 0.3268846153846154,
+      "mol2_idx": 31,
+      "element": "H"
+    }
+  ],
+  "template_bonds": [
+    [
+      "N",
+      "CA"
+    ],
+    [
+      "N",
+      "H"
+    ],
+    [
+      "CA",
+      "C"
+    ],
+    [
+      "CA",
+      "CB"
+    ],
+    [
+      "CA",
+      "C01"
+    ],
+    [
+      "C",
+      "O"
+    ],
+    [
+      "CB",
+      "H03"
+    ],
+    [
+      "CB",
+      "H04"
+    ],
+    [
+      "CB",
+      "H05"
+    ],
+    [
+      "C01",
+      "H06"
+    ],
+    [
+      "C01",
+      "H07"
+    ],
+    [
+      "C01",
+      "H08"
+    ]
+  ],
+  "external_bonds": [
+    "C",
+    "N"
+  ],
+  "raw_total_charge": -0.004999999999999907,
+  "target_charge": 0.0,
+  "charge_correction": "uniform",
+  "total_template_charge": 1.3877787807814457e-16
+}

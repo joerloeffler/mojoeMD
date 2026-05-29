@@ -1,0 +1,59 @@
+{
+  "structure": "analysis_out/processed_topology.pdb",
+  "trajectory": "analysis_out/processed.dcd",
+  "output_dir": "contact_analysis_out",
+
+  "itypes": "hb,sb,pc,ps,ts,vdw,wb,wb2",
+  "selection1": "chain A",
+  "selection2": "chain B",
+
+  "exclude_wb2": true,
+  "exclude_itypes": [],
+  "min_frequency": 0.01,
+
+  "getcontacts": {
+    "run": true,
+    "dynamic": true,
+    "itypes": "hb,sb,pc,ps,ts,vdw,wb,wb2",
+    "sele": "chain A",
+    "sele2": "chain B",
+    "output_tsv": "getcontacts_A_B.tsv",
+    "extra_args": []
+  },
+
+  "mapping_contacts": true,
+  "contact_mapped_pdb": "contacts_mapped_bfactor.pdb",
+  "contact_bfactor_scale": 100.0,
+
+  "pml": {
+    "enable": true,
+    "out": "contacts.pml",
+    "max_contacts": 200,
+    "min_width": 1.5,
+    "max_width": 10.0
+  },
+
+  "energies": {
+    "enable": true,
+    "system_xml": "system.xml",
+    "prmtop": null,
+    "stride": 10,
+    "cutoff_nm": 1.2,
+    "heavy_only": false,
+    "min_frequency": 0.1,
+    "residue_vs_opposite_selection": true,
+    "individual_contacts": true,
+    "max_individual_contacts": 300,
+    "out_csv": "interaction_energies.csv"
+  },
+
+  "mapping_energies": true,
+  "energy_mapped_pdb": "energies_mapped_bfactor.pdb",
+  "energy_contacts_pml": "energy_contacts.pml",
+  "energy_pml_max_contacts": 200,
+  "energy_pml_attractive_only": true,
+  "energy_pml_min_width": 1.5,
+  "energy_pml_max_width": 10.0,
+
+  "plots": true
+}

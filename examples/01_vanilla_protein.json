@@ -1,0 +1,12 @@
+{
+  "receptor": "inputs/protein.pdb",
+  "output_dir": "runs/vanilla_protein",
+  "prepare": true,
+  "equilibrate": true,
+  "produce": true,
+  "ph": 7.4,
+  "water_model": "tip3p",
+  "timestep_fs": 4.0,
+  "hydrogen_mass": 1.5,
+  "prod_ns": 100.0
+}

@@ -1,0 +1,12 @@
+<?xml version="1.0" ?>
+<Residues>
+  <Residue name="ALM">
+    <H name="H" parent="N"/>
+    <H name="H03" parent="CB"/>
+    <H name="H04" parent="CB"/>
+    <H name="H05" parent="CB"/>
+    <H name="H06" parent="C01"/>
+    <H name="H07" parent="C01"/>
+    <H name="H08" parent="C01"/>
+  </Residue>
+</Residues>
