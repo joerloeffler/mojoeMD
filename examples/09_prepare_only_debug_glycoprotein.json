@@ -10,6 +10,10 @@
   "glyco_debug": true,
   "glyco_debug_residue_index": 527,
   "ph": 7.4,
+  "metal_aware_protonation": true,
+  "metal_coordination_restraints": false,
+  "metal_coordination_cutoff": 3.0,
+  "metal_coordination_k": 50000.0,
   "water_model": "tip3p",
   "timestep_fs": 4.0,
   "hydrogen_mass": 1.5

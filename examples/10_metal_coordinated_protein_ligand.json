@@ -1,0 +1,19 @@
+{
+  "receptor": "inputs/metal_coordinated_protein.pdb",
+  "ligand": "inputs/ligand.sdf",
+  "ligand_resname": "LIG",
+  "output_dir": "runs/metal_coordinated_protein_ligand",
+  "prepare": true,
+  "equilibrate": true,
+  "produce": true,
+  "lig_ff": "espaloma",
+  "ph": 7.4,
+  "metal_aware_protonation": true,
+  "metal_coordination_restraints": true,
+  "metal_coordination_cutoff": 3.0,
+  "metal_coordination_k": 50000.0,
+  "water_model": "tip3p",
+  "timestep_fs": 4.0,
+  "hydrogen_mass": 1.5,
+  "prod_ns": 100.0
+}

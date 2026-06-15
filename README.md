@@ -31,6 +31,7 @@ examples/ncaa_work/                            Example NCAA intermediate files
    - Loads a receptor PDB with PDBFixer.
    - Replaces ordinary nonstandard residues unless NCAA mode preserves them.
    - Adds hydrogens with OpenMM `Modeller`.
+   - Applies metal-aware histidine/cysteine protonation when retained metals are nearby.
    - Optionally adds a ligand from SDF using OpenFF/RDKit and either Espaloma or SMIRNOFF.
    - Optionally detects and renames glycan residues for GLYCAM.
    - Optionally patches NCAA internal and peptide bonds from supplied `ffxml`.
@@ -124,6 +125,10 @@ Common fields:
 - `hydrogen_mass`: hydrogen mass for H-mass repartitioning.
 - `ph`: pH used during hydrogen addition.
 - `water_model`: solvent model passed to `Modeller.addSolvent`.
+- `metal_aware_protonation`: enabled by default; forces metal-aware residue variants such as histidine tautomers and deprotonated cysteine when donor atoms are close to a retained metal.
+- `metal_coordination_restraints`: optional harmonic restraints between retained metals and nearby N/O/S donor atoms.
+- `metal_coordination_cutoff`: metal-donor detection cutoff in Angstrom.
+- `metal_coordination_k`: restraint force constant in kJ/mol/nm^2.
 
 ## Protein-Ligand Systems
 
@@ -148,6 +153,11 @@ Use a config such as `examples/02_protein_ligand.json`:
 - `smirnoff`
 
 The ligand SDF must contain at least one conformer.
+
+For metalloprotein or metal-coordinated ligand systems, use a config such as
+`examples/10_metal_coordinated_protein_ligand.json`. Metal-aware protonation is
+enabled by default, and that example also enables harmonic metal coordination
+restraints.
 
 ## Glycoproteins
 
@@ -307,6 +317,7 @@ The energy calculation is a lightweight Coulomb + Lennard-Jones screen. It is us
 ## Important Notes
 
 - Input PDB quality matters. Missing atoms, ambiguous chain IDs, unsupported glycan linkages, or unmatched NCAA residues will stop preparation.
+- Metal sites need special care. Metal-aware protonation prevents hydrogens from being added to coordinating histidine nitrogens or cysteine sulfurs, but monatomic metal ions are still nonbonded particles unless `metal_coordination_restraints` or a dedicated metal-site model is used.
 - `mojoeMD.py` currently uses Amber14 protein and TIP3P-FB force-field XML files by default.
 - `water_model` is passed to OpenMM solvent building; keep it compatible with the loaded water XML.
 - Production reports DCD frames every 50 ps.
