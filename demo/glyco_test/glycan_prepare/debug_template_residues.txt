@@ -1,0 +1,189 @@
+================================================================================
+Residue index: 14
+Residue: NLN:A:17
+Template: NLN
+
+Atoms:
+    104 N
+    105 CA
+    106 C
+    107 O
+    108 CB
+    109 CG
+    110 ND2
+    111 OD1
+
+Bonds involving this residue:
+  MET:A:16:C -- NLN:A:17:N
+  NLN:A:17:C -- NLN:A:17:CA
+  NLN:A:17:C -- NLN:A:17:O
+  NLN:A:17:CA -- NLN:A:17:CB
+  NLN:A:17:CA -- NLN:A:17:N
+  NLN:A:17:CB -- NLN:A:17:CG
+  NLN:A:17:CG -- NLN:A:17:ND2
+  NLN:A:17:CG -- NLN:A:17:OD1
+  NLN:A:17:C -- LEU:A:18:N
+  NLN:A:17:ND2 -- 4YB:C:1:C1
+
+================================================================================
+Residue index: 54
+Residue: NLN:A:57
+Template: NLN
+
+Atoms:
+    424 N
+    425 CA
+    426 C
+    427 O
+    428 CB
+    429 CG
+    430 ND2
+    431 OD1
+
+Bonds involving this residue:
+  TRP:A:56:C -- NLN:A:57:N
+  NLN:A:57:C -- NLN:A:57:CA
+  NLN:A:57:C -- NLN:A:57:O
+  NLN:A:57:CA -- NLN:A:57:CB
+  NLN:A:57:CA -- NLN:A:57:N
+  NLN:A:57:CB -- NLN:A:57:CG
+  NLN:A:57:CG -- NLN:A:57:ND2
+  NLN:A:57:CG -- NLN:A:57:OD1
+  NLN:A:57:C -- ALA:A:58:N
+  NLN:A:57:ND2 -- UYB:D:1:C1
+
+================================================================================
+Residue index: 103
+Residue: NLN:A:106
+Template: NLN
+
+Atoms:
+    812 N
+    813 CA
+    814 C
+    815 O
+    816 CB
+    817 CG
+    818 ND2
+    819 OD1
+
+Bonds involving this residue:
+  LYS:A:105:C -- NLN:A:106:N
+  NLN:A:106:C -- NLN:A:106:CA
+  NLN:A:106:C -- NLN:A:106:O
+  NLN:A:106:CA -- NLN:A:106:CB
+  NLN:A:106:CA -- NLN:A:106:N
+  NLN:A:106:CB -- NLN:A:106:CG
+  NLN:A:106:CG -- NLN:A:106:ND2
+  NLN:A:106:CG -- NLN:A:106:OD1
+  NLN:A:106:C -- ALA:A:107:N
+  NLN:A:106:ND2 -- 4YB:E:1:C1
+
+================================================================================
+Residue index: 238
+Residue: NLN:A:241
+Template: NLN
+
+Atoms:
+   1826 N
+   1827 CA
+   1828 C
+   1829 O
+   1830 CB
+   1831 CG
+   1832 ND2
+   1833 OD1
+
+Bonds involving this residue:
+  ARG:A:240:C -- NLN:A:241:N
+  NLN:A:241:C -- NLN:A:241:CA
+  NLN:A:241:C -- NLN:A:241:O
+  NLN:A:241:CA -- NLN:A:241:CB
+  NLN:A:241:CA -- NLN:A:241:N
+  NLN:A:241:CB -- NLN:A:241:CG
+  NLN:A:241:CG -- NLN:A:241:ND2
+  NLN:A:241:CG -- NLN:A:241:OD1
+  NLN:A:241:C -- ARG:A:242:N
+  NLN:A:241:ND2 -- UYB:F:1:C1
+
+================================================================================
+Residue index: 338
+Residue: NLN:A:341
+Template: NLN
+
+Atoms:
+   2599 N
+   2600 CA
+   2601 C
+   2602 O
+   2603 CB
+   2604 CG
+   2605 ND2
+   2606 OD1
+
+Bonds involving this residue:
+  ASP:A:340:C -- NLN:A:341:N
+  NLN:A:341:C -- NLN:A:341:CA
+  NLN:A:341:C -- NLN:A:341:O
+  NLN:A:341:CA -- NLN:A:341:CB
+  NLN:A:341:CA -- NLN:A:341:N
+  NLN:A:341:CB -- NLN:A:341:CG
+  NLN:A:341:CG -- NLN:A:341:ND2
+  NLN:A:341:CG -- NLN:A:341:OD1
+  NLN:A:341:C -- ASN:A:342:N
+  NLN:A:341:ND2 -- 0YB:A:651:C1
+
+================================================================================
+Residue index: 478
+Residue: NLN:A:481
+Template: NLN
+
+Atoms:
+   3785 N
+   3786 CA
+   3787 C
+   3788 O
+   3789 CB
+   3790 CG
+   3791 ND2
+   3792 OD1
+
+Bonds involving this residue:
+  PRO:A:480:C -- NLN:A:481:N
+  NLN:A:481:C -- NLN:A:481:CA
+  NLN:A:481:C -- NLN:A:481:O
+  NLN:A:481:CA -- NLN:A:481:CB
+  NLN:A:481:CA -- NLN:A:481:N
+  NLN:A:481:CB -- NLN:A:481:CG
+  NLN:A:481:CG -- NLN:A:481:ND2
+  NLN:A:481:CG -- NLN:A:481:OD1
+  NLN:A:481:C -- GLU:A:482:N
+  NLN:A:481:ND2 -- 4YB:G:1:C1
+
+================================================================================
+Residue index: 483
+Residue: NLN:A:486
+Template: NLN
+
+Atoms:
+   3826 N
+   3827 CA
+   3828 C
+   3829 O
+   3830 CB
+   3831 CG
+   3832 ND2
+   3833 OD1
+
+Bonds involving this residue:
+  ASN:A:485:C -- NLN:A:486:N
+  NLN:A:486:C -- NLN:A:486:CA
+  NLN:A:486:C -- NLN:A:486:O
+  NLN:A:486:CA -- NLN:A:486:CB
+  NLN:A:486:CA -- NLN:A:486:N
+  NLN:A:486:CB -- NLN:A:486:CG
+  NLN:A:486:CG -- NLN:A:486:ND2
+  NLN:A:486:CG -- NLN:A:486:OD1
+  NLN:A:486:C -- SER:A:487:N
+  NLN:A:486:ND2 -- UYB:H:1:C1
+

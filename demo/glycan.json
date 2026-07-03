@@ -1,0 +1,22 @@
+{
+  "receptor": "4AQD_glycans_new.pdb",
+  "output_dir": "glyco_test",
+
+  "prepare": true,
+  "equilibrate": false,
+  "produce": false,
+
+  "glycoprotein": true,
+
+  "glycam_xml": "amber14/GLYCAM_06j-1.xml",
+  "glycam_hydrogens": "glycam-hydrogens.xml",
+
+  "glyco_debug": true,
+
+  "ph": 7.4,
+
+  "timestep_fs": 4.0,
+  "hydrogen_mass": 1.5,
+
+  "prod_ns": 1.0
+}
