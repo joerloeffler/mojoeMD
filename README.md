@@ -1,6 +1,7 @@
 <p align="center">
   <img src="mojoeMD_logo.png" alt="mojoeMD_logo" width="420">
 </p>
+
 # mojoeMD
 
 `mojoeMD` is a JSON-driven molecular dynamics workflow for OpenMM. It prepares solvated systems, equilibrates them, runs production MD, and includes companion tools for trajectory analysis, contact analysis, interaction-energy screening, and noncanonical amino acid (NCAA) residue-template generation.

@@ -1,5 +1,6 @@
 # Local development scratch space and generated simulation output.
 dev/
+demo/
 
 # Python caches and local environments.
 __pycache__/
