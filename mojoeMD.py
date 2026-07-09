@@ -71,6 +71,90 @@ def setup_logging(log_file: str | Path) -> None:
     )
 
 
+def resolve_config_path(value: str | None, config_dir: Path | None) -> str | None:
+    """Resolve a config path relative to its JSON file when that file exists."""
+    if value is None or config_dir is None:
+        return value
+
+    path = Path(value).expanduser()
+    if path.is_absolute() or path.exists():
+        return str(path)
+
+    config_relative = config_dir / path
+    if config_relative.exists():
+        return str(config_relative)
+
+    return value
+
+
+def resolve_config_paths(args: argparse.Namespace, config_dir: Path | None) -> None:
+    if config_dir is None:
+        return
+
+    args.receptor = resolve_config_path(args.receptor, config_dir)
+    args.ligand = resolve_config_path(args.ligand, config_dir)
+
+    if args.ncaa_ffxml:
+        args.ncaa_ffxml = [
+            resolve_config_path(ffxml, config_dir)
+            for ffxml in args.ncaa_ffxml
+        ]
+
+    args.glycam_hydrogens = resolve_config_path(args.glycam_hydrogens, config_dir)
+    args.water_ff = resolve_config_path(args.water_ff, config_dir)
+    args.lipid_ff = resolve_config_path(args.lipid_ff, config_dir)
+
+
+def validate_existing_file(path: str | None, label: str) -> bool:
+    if path is None:
+        return True
+
+    if Path(path).expanduser().exists():
+        return True
+
+    logging.error(f"{label} file does not exist: {path}")
+    return False
+
+
+def validate_openmm_app_data_file(path: str | None, label: str) -> bool:
+    if path is None:
+        return True
+
+    if Path(path).expanduser().exists():
+        return True
+
+    app_spec = importlib.util.find_spec("openmm.app")
+    if app_spec and app_spec.origin:
+        data_path = Path(app_spec.origin).parent / "data" / path
+        if data_path.exists():
+            return True
+
+    logging.error(f"{label} file does not exist: {path}")
+    return False
+
+
+def validate_input_files(args: argparse.Namespace) -> None:
+    ok = validate_existing_file(args.receptor, "Receptor")
+
+    if args.ligand:
+        ok = validate_existing_file(args.ligand, "Ligand") and ok
+
+    if args.ncaa_ffxml:
+        for ffxml in args.ncaa_ffxml:
+            ok = validate_existing_file(ffxml, "NCAA ffxml") and ok
+
+    if args.glycoprotein:
+        ok = validate_openmm_app_data_file(args.glycam_hydrogens, "GLYCAM hydrogen definitions") and ok
+
+    ok = validate_openmm_app_data_file(args.water_ff, "Water force field") and ok
+
+    if args.membrane:
+        ok = validate_openmm_app_data_file(args.lipid_ff, "Lipid force field") and ok
+
+    if not ok:
+        sys.exit(1)
+
+
 def select_platform(platform_name: str | None = None) -> Platform:
     if platform_name is None or platform_name.lower() == "fastest":
         platform = get_fastest_platform()
@@ -115,6 +199,22 @@ class LoggingReporter:
 
         self._last_reported_time = current_time
         self._last_reported_ns = current_nanoseconds
+
+
+def strip_amber_caps(modeller: Modeller) -> None:
+    cap_residues = [
+        residue
+        for residue in modeller.topology.residues()
+        if residue.name.upper() in {"ACE", "NME"}
+    ]
+
+    if not cap_residues:
+        logging.info("Terminal cap stripping requested, but no ACE/NME residues were found.")
+        return
+
+    labels = [f"{residue.name} {residue.chain.id}:{residue.id}" for residue in cap_residues]
+    modeller.delete(cap_residues)
+    logging.info("Removed terminal caps: " + ", ".join(labels))
 
 
 def prepare_protein(
@@ -1671,10 +1771,13 @@ def prepare_glycoprotein_modeller(
 def run_prepare(args: argparse.Namespace) -> None:
     logging.info("--- STAGE 1: SYSTEM PREPARATION ---")
 
-    forcefield_files = [
-        "amber14/protein.ff14SB.xml",
-        "amber14/tip3pfb.xml",
-    ]
+    forcefield_files = ["amber14/protein.ff14SB.xml"]
+
+    if args.membrane:
+        logging.info("Membrane mode enabled: adding lipid force field.")
+        forcefield_files.append(args.lipid_ff)
+
+    forcefield_files.append(args.water_ff)
 
     if args.glycoprotein:
         logging.info("Glycoprotein mode enabled: adding GLYCAM force field.")
@@ -1706,6 +1809,9 @@ def run_prepare(args: argparse.Namespace) -> None:
         )
 
         modeller = Modeller(protein_fixer.topology, protein_fixer.positions)
+
+        if args.strip_caps:
+            strip_amber_caps(modeller)
 
         if args.ncaa:
             patch_ncaa_internal_bonds_from_ffxml(
@@ -1755,14 +1861,40 @@ def run_prepare(args: argparse.Namespace) -> None:
 
     check_unmatched_residues(forcefield, modeller.topology, args, ignored_residues=ligand_residues_to_ignore)
 
-    logging.info("Adding solvent and ions...")
-    modeller.addSolvent(
-        forcefield,
-        model=args.water_model,
-        padding=1.0 * nanometer,
-        ionicStrength=0.15 * molar,
-        neutralize=True,
-    )
+    if args.membrane:
+        membrane_center_z = args.membrane_center_z
+        if membrane_center_z is None:
+            positions_nm = modeller.positions.value_in_unit(nanometer)
+            z_values = [position[2] for position in positions_nm]
+            membrane_center_z = 0.5 * (min(z_values) + max(z_values))
+            logging.info(f"Auto-selected membrane center z: {membrane_center_z:.2f} nm")
+
+        logging.info(
+            "Adding membrane, solvent, and ions "
+            f"(lipid={args.lipid_type}, padding={args.membrane_padding:.2f} nm, "
+            f"center_z={membrane_center_z:.2f} nm)..."
+        )
+        modeller.addMembrane(
+            forcefield,
+            lipidType=args.lipid_type,
+            membraneCenterZ=membrane_center_z * nanometer,
+            minimumPadding=args.membrane_padding * nanometer,
+            positiveIon=args.positive_ion,
+            negativeIon=args.negative_ion,
+            ionicStrength=args.ionic_strength * molar,
+            neutralize=True,
+        )
+    else:
+        logging.info("Adding solvent and ions...")
+        modeller.addSolvent(
+            forcefield,
+            model=args.water_model,
+            padding=args.solvent_padding * nanometer,
+            positiveIon=args.positive_ion,
+            negativeIon=args.negative_ion,
+            ionicStrength=args.ionic_strength * molar,
+            neutralize=True,
+        )
     logging.info(f"System size: {modeller.topology.getNumAtoms()} atoms.")
 
     logging.info("Creating OpenMM System object...")
@@ -1984,10 +2116,14 @@ def main() -> None:
     args, remaining_argv = conf_parser.parse_known_args()
 
     defaults = {}
+    config_dir = None
 
     if args.config:
         try:
-            with open(args.config) as f:
+            config_path = Path(args.config).expanduser()
+            config_dir = config_path.resolve().parent
+
+            with open(config_path) as f:
                 defaults = json.load(f)
                 print(f"Loaded configuration from {args.config}")
         except (FileNotFoundError, json.JSONDecodeError) as e:
@@ -2045,7 +2181,77 @@ def main() -> None:
         help="Water box model name passed to Modeller.addSolvent. Keep tip3p when using amber14/tip3pfb.xml.",
     )
 
+    parser.add_argument(
+        "--water_ff",
+        default="amber14/tip3pfb.xml",
+        help="OpenMM water force-field XML file.",
+    )
+
+    parser.add_argument(
+        "--solvent_padding",
+        type=float,
+        default=1.0,
+        help="Solvent box padding in nanometers for non-membrane systems.",
+    )
+
+    parser.add_argument(
+        "--ionic_strength",
+        type=float,
+        default=0.15,
+        help="Ionic strength in molar for solvent or membrane preparation.",
+    )
+
+    parser.add_argument(
+        "--positive_ion",
+        default="Na+",
+        help="Positive ion type used for neutralization and salt.",
+    )
+
+    parser.add_argument(
+        "--negative_ion",
+        default="Cl-",
+        help="Negative ion type used for neutralization and salt.",
+    )
+
+    parser.add_argument(
+        "--membrane",
+        action="store_true",
+        help="Build a lipid membrane and water box around the prepared complex.",
+    )
+
+    parser.add_argument(
+        "--lipid_type",
+        default="POPC",
+        help="Lipid type passed to Modeller.addMembrane.",
+    )
+
+    parser.add_argument(
+        "--lipid_ff",
+        default="amber14/lipid17.xml",
+        help="OpenMM lipid force-field XML file used when --membrane is enabled.",
+    )
+
+    parser.add_argument(
+        "--membrane_padding",
+        type=float,
+        default=1.0,
+        help="Minimum membrane/water box padding in nanometers.",
+    )
+
+    parser.add_argument(
+        "--membrane_center_z",
+        type=float,
+        default=None,
+        help="Membrane center position along z in nanometers. Defaults to the prepared complex z-midpoint.",
+    )
+
     parser.add_argument("--ph", type=float, default=7.4, help="pH used for hydrogen addition.")
+
+    parser.add_argument(
+        "--strip_caps",
+        action="store_true",
+        help="Remove ACE/NME terminal caps before hydrogen addition and prepare ordinary termini.",
+    )
 
     parser.add_argument(
         "--metal_aware_protonation",
@@ -2153,6 +2359,7 @@ def main() -> None:
 
     parser.set_defaults(**defaults)
     args = parser.parse_args(remaining_argv)
+    resolve_config_paths(args, config_dir)
 
     if not args.output_dir:
         print("ERROR: The --output_dir argument is required.")
@@ -2181,6 +2388,8 @@ def main() -> None:
     if not args.receptor:
         logging.error("The --receptor argument is required.")
         sys.exit(1)
+
+    validate_input_files(args)
 
     if args.prepare:
         run_prepare(args)
