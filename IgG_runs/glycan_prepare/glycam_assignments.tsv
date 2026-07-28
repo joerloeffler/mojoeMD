@@ -1,0 +1,109 @@
+residue	resname	template	confidence	reason	external_atoms
+BMA:C:3	BMA	VMB	high	Matched GLYCAM template VMB by external atoms ['C1', 'O3', 'O6']	C1,O3,O6
+BMA:D:3	BMA	VMB	high	Matched GLYCAM template VMB by external atoms ['C1', 'O3', 'O6']	C1,O3,O6
+BMA:c:3	BMA	VMB	high	Matched GLYCAM template VMB by external atoms ['C1', 'O3', 'O6']	C1,O3,O6
+BMA:d:3	BMA	VMB	high	Matched GLYCAM template VMB by external atoms ['C1', 'O3', 'O6']	C1,O3,O6
+BMA:f:3	BMA	VMB	high	Matched GLYCAM template VMB by external atoms ['C1', 'O3', 'O6']	C1,O3,O6
+BMA:g:3	BMA	VMB	high	Matched GLYCAM template VMB by external atoms ['C1', 'O3', 'O6']	C1,O3,O6
+BMA:i:3	BMA	VMB	high	Matched GLYCAM template VMB by external atoms ['C1', 'O3', 'O6']	C1,O3,O6
+BMA:j:3	BMA	VMB	high	Matched GLYCAM template VMB by external atoms ['C1', 'O3', 'O6']	C1,O3,O6
+BMA:l:3	BMA	VMB	high	Matched GLYCAM template VMB by external atoms ['C1', 'O3', 'O6']	C1,O3,O6
+BMA:m:3	BMA	VMB	high	Matched GLYCAM template VMB by external atoms ['C1', 'O3', 'O6']	C1,O3,O6
+BMA:o:3	BMA	VMB	high	Matched GLYCAM template VMB by external atoms ['C1', 'O3', 'O6']	C1,O3,O6
+BMA:p:3	BMA	VMB	high	Matched GLYCAM template VMB by external atoms ['C1', 'O3', 'O6']	C1,O3,O6
+FUC:D:8	FUC	0FA	high	Matched GLYCAM template 0FA by external atoms ['C1']	C1
+FUC:d:8	FUC	0FA	high	Matched GLYCAM template 0FA by external atoms ['C1']	C1
+FUC:g:8	FUC	0FA	high	Matched GLYCAM template 0FA by external atoms ['C1']	C1
+FUC:j:8	FUC	0FA	high	Matched GLYCAM template 0FA by external atoms ['C1']	C1
+FUC:m:8	FUC	0FA	high	Matched GLYCAM template 0FA by external atoms ['C1']	C1
+FUC:p:8	FUC	0FA	high	Matched GLYCAM template 0FA by external atoms ['C1']	C1
+GAL:C:10	GAL	0LB	motif	Resolved terminal Gal-beta-1,4-GlcNAc motif from NAG O4 -> GAL C1 linkage	C1
+GAL:C:7	GAL	0LB	motif	Resolved terminal Gal-beta-1,4-GlcNAc motif from NAG O4 -> GAL C1 linkage	C1
+GAL:D:7	GAL	0LB	motif	Resolved terminal Gal-beta-1,4-GlcNAc motif from NAG O4 -> GAL C1 linkage	C1
+GAL:c:10	GAL	0LB	motif	Resolved terminal Gal-beta-1,4-GlcNAc motif from NAG O4 -> GAL C1 linkage	C1
+GAL:c:7	GAL	0LB	motif	Resolved terminal Gal-beta-1,4-GlcNAc motif from NAG O4 -> GAL C1 linkage	C1
+GAL:d:7	GAL	0LB	motif	Resolved terminal Gal-beta-1,4-GlcNAc motif from NAG O4 -> GAL C1 linkage	C1
+GAL:f:10	GAL	0LB	motif	Resolved terminal Gal-beta-1,4-GlcNAc motif from NAG O4 -> GAL C1 linkage	C1
+GAL:f:7	GAL	0LB	motif	Resolved terminal Gal-beta-1,4-GlcNAc motif from NAG O4 -> GAL C1 linkage	C1
+GAL:g:7	GAL	0LB	motif	Resolved terminal Gal-beta-1,4-GlcNAc motif from NAG O4 -> GAL C1 linkage	C1
+GAL:i:10	GAL	0LB	motif	Resolved terminal Gal-beta-1,4-GlcNAc motif from NAG O4 -> GAL C1 linkage	C1
+GAL:i:7	GAL	0LB	motif	Resolved terminal Gal-beta-1,4-GlcNAc motif from NAG O4 -> GAL C1 linkage	C1
+GAL:j:7	GAL	0LB	motif	Resolved terminal Gal-beta-1,4-GlcNAc motif from NAG O4 -> GAL C1 linkage	C1
+GAL:l:10	GAL	0LB	motif	Resolved terminal Gal-beta-1,4-GlcNAc motif from NAG O4 -> GAL C1 linkage	C1
+GAL:l:7	GAL	0LB	motif	Resolved terminal Gal-beta-1,4-GlcNAc motif from NAG O4 -> GAL C1 linkage	C1
+GAL:m:7	GAL	0LB	motif	Resolved terminal Gal-beta-1,4-GlcNAc motif from NAG O4 -> GAL C1 linkage	C1
+GAL:o:10	GAL	0LB	motif	Resolved terminal Gal-beta-1,4-GlcNAc motif from NAG O4 -> GAL C1 linkage	C1
+GAL:o:7	GAL	0LB	motif	Resolved terminal Gal-beta-1,4-GlcNAc motif from NAG O4 -> GAL C1 linkage	C1
+GAL:p:7	GAL	0LB	motif	Resolved terminal Gal-beta-1,4-GlcNAc motif from NAG O4 -> GAL C1 linkage	C1
+MAN:C:4	MAN	2MA	high	Matched GLYCAM template 2MA by external atoms ['C1', 'O2']	C1,O2
+MAN:C:6	MAN	2MA	high	Matched GLYCAM template 2MA by external atoms ['C1', 'O2']	C1,O2
+MAN:D:4	MAN	2MA	high	Matched GLYCAM template 2MA by external atoms ['C1', 'O2']	C1,O2
+MAN:D:6	MAN	2MA	high	Matched GLYCAM template 2MA by external atoms ['C1', 'O2']	C1,O2
+MAN:c:4	MAN	2MA	high	Matched GLYCAM template 2MA by external atoms ['C1', 'O2']	C1,O2
+MAN:c:6	MAN	2MA	high	Matched GLYCAM template 2MA by external atoms ['C1', 'O2']	C1,O2
+MAN:d:4	MAN	2MA	high	Matched GLYCAM template 2MA by external atoms ['C1', 'O2']	C1,O2
+MAN:d:6	MAN	2MA	high	Matched GLYCAM template 2MA by external atoms ['C1', 'O2']	C1,O2
+MAN:f:4	MAN	2MA	high	Matched GLYCAM template 2MA by external atoms ['C1', 'O2']	C1,O2
+MAN:f:6	MAN	2MA	high	Matched GLYCAM template 2MA by external atoms ['C1', 'O2']	C1,O2
+MAN:g:4	MAN	2MA	high	Matched GLYCAM template 2MA by external atoms ['C1', 'O2']	C1,O2
+MAN:g:6	MAN	2MA	high	Matched GLYCAM template 2MA by external atoms ['C1', 'O2']	C1,O2
+MAN:i:4	MAN	2MA	high	Matched GLYCAM template 2MA by external atoms ['C1', 'O2']	C1,O2
+MAN:i:6	MAN	2MA	high	Matched GLYCAM template 2MA by external atoms ['C1', 'O2']	C1,O2
+MAN:j:4	MAN	2MA	high	Matched GLYCAM template 2MA by external atoms ['C1', 'O2']	C1,O2
+MAN:j:6	MAN	2MA	high	Matched GLYCAM template 2MA by external atoms ['C1', 'O2']	C1,O2
+MAN:l:4	MAN	2MA	high	Matched GLYCAM template 2MA by external atoms ['C1', 'O2']	C1,O2
+MAN:l:6	MAN	2MA	high	Matched GLYCAM template 2MA by external atoms ['C1', 'O2']	C1,O2
+MAN:m:4	MAN	2MA	high	Matched GLYCAM template 2MA by external atoms ['C1', 'O2']	C1,O2
+MAN:m:6	MAN	2MA	high	Matched GLYCAM template 2MA by external atoms ['C1', 'O2']	C1,O2
+MAN:o:4	MAN	2MA	high	Matched GLYCAM template 2MA by external atoms ['C1', 'O2']	C1,O2
+MAN:o:6	MAN	2MA	high	Matched GLYCAM template 2MA by external atoms ['C1', 'O2']	C1,O2
+MAN:p:4	MAN	2MA	high	Matched GLYCAM template 2MA by external atoms ['C1', 'O2']	C1,O2
+MAN:p:6	MAN	2MA	high	Matched GLYCAM template 2MA by external atoms ['C1', 'O2']	C1,O2
+NAG:C:1	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:C:2	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:C:5	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:C:9	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:D:1	NAG	UYB	high	Matched GLYCAM template UYB by external atoms ['C1', 'O4', 'O6']	C1,O4,O6
+NAG:D:2	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:D:5	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:D:9	NAG	0YB	high	Matched GLYCAM template 0YB by external atoms ['C1']	C1
+NAG:c:1	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:c:2	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:c:5	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:c:9	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:d:1	NAG	UYB	high	Matched GLYCAM template UYB by external atoms ['C1', 'O4', 'O6']	C1,O4,O6
+NAG:d:2	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:d:5	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:d:9	NAG	0YB	high	Matched GLYCAM template 0YB by external atoms ['C1']	C1
+NAG:f:1	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:f:2	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:f:5	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:f:9	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:g:1	NAG	UYB	high	Matched GLYCAM template UYB by external atoms ['C1', 'O4', 'O6']	C1,O4,O6
+NAG:g:2	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:g:5	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:g:9	NAG	0YB	high	Matched GLYCAM template 0YB by external atoms ['C1']	C1
+NAG:i:1	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:i:2	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:i:5	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:i:9	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:j:1	NAG	UYB	high	Matched GLYCAM template UYB by external atoms ['C1', 'O4', 'O6']	C1,O4,O6
+NAG:j:2	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:j:5	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:j:9	NAG	0YB	high	Matched GLYCAM template 0YB by external atoms ['C1']	C1
+NAG:l:1	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:l:2	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:l:5	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:l:9	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:m:1	NAG	UYB	high	Matched GLYCAM template UYB by external atoms ['C1', 'O4', 'O6']	C1,O4,O6
+NAG:m:2	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:m:5	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:m:9	NAG	0YB	high	Matched GLYCAM template 0YB by external atoms ['C1']	C1
+NAG:o:1	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:o:2	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:o:5	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:o:9	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:p:1	NAG	UYB	high	Matched GLYCAM template UYB by external atoms ['C1', 'O4', 'O6']	C1,O4,O6
+NAG:p:2	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:p:5	NAG	4YB	high	Matched GLYCAM template 4YB by external atoms ['C1', 'O4']	C1,O4
+NAG:p:9	NAG	0YB	high	Matched GLYCAM template 0YB by external atoms ['C1']	C1

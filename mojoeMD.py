@@ -133,6 +133,176 @@ def validate_openmm_app_data_file(path: str | None, label: str) -> bool:
     return False
 
 
+def parse_int_residue_id(residue_id: str) -> int | None:
+    try:
+        return int(residue_id)
+    except (TypeError, ValueError):
+        return None
+
+
+KYTE_DOOLITTLE_HYDROPATHY = {
+    "ALA": 1.8,
+    "ARG": -4.5,
+    "ASN": -3.5,
+    "ASP": -3.5,
+    "CYS": 2.5,
+    "GLN": -3.5,
+    "GLU": -3.5,
+    "GLY": -0.4,
+    "HIS": -3.2,
+    "ILE": 4.5,
+    "LEU": 3.8,
+    "LYS": -3.9,
+    "MET": 1.9,
+    "PHE": 2.8,
+    "PRO": -1.6,
+    "SER": -0.8,
+    "THR": -0.7,
+    "TRP": -0.9,
+    "TYR": -1.3,
+    "VAL": 4.2,
+}
+
+
+def infer_membrane_center_z_from_hydrophobic_slab(
+    modeller: Modeller,
+    thickness_nm: float,
+    window_size: int = 21,
+) -> float | None:
+    positions_nm = modeller.positions.value_in_unit(nanometer)
+    residues_by_chain: dict[str, list[tuple[int, str, float]]] = defaultdict(list)
+
+    for atom in modeller.topology.atoms():
+        residue = atom.residue
+        residue_name = residue.name.upper()
+        if residue_name not in KYTE_DOOLITTLE_HYDROPATHY:
+            continue
+        if atom.name != "CA":
+            continue
+
+        residue_id = parse_int_residue_id(residue.id)
+        if residue_id is None:
+            continue
+
+        residues_by_chain[residue.chain.id].append((
+            residue_id,
+            residue_name,
+            positions_nm[atom.index][2],
+        ))
+
+    if not residues_by_chain:
+        return None
+
+    best = None
+    min_z_span_nm = min(1.4, thickness_nm * 0.5)
+
+    for chain_id, residues in residues_by_chain.items():
+        residues = sorted(residues)
+        if len(residues) < window_size:
+            continue
+
+        for start in range(len(residues) - window_size + 1):
+            window = residues[start:start + window_size]
+            first_resid = window[0][0]
+            last_resid = window[-1][0]
+
+            if last_resid - first_resid > window_size + 5:
+                continue
+
+            z_values = [item[2] for item in window]
+            z_span = max(z_values) - min(z_values)
+            if z_span < min_z_span_nm:
+                continue
+
+            hydropathy = sum(KYTE_DOOLITTLE_HYDROPATHY[item[1]] for item in window) / window_size
+            if hydropathy < 1.0:
+                continue
+
+            score = hydropathy * z_span
+            if best is None or score > best["score"]:
+                best = {
+                    "score": score,
+                    "chain_id": chain_id,
+                    "first_resid": first_resid,
+                    "last_resid": last_resid,
+                    "hydropathy": hydropathy,
+                    "z_span": z_span,
+                    "center_z": 0.5 * (min(z_values) + max(z_values)),
+                }
+
+    if best is None:
+        return None
+
+    logging.info(
+        "Auto-selected membrane center z from hydrophobic TM-window heuristic: "
+        f"{best['center_z']:.2f} nm "
+        f"(chain={best['chain_id']}, residues={best['first_resid']}-{best['last_resid']}, "
+        f"hydropathy={best['hydropathy']:.2f}, z_span={best['z_span']:.2f} nm)"
+    )
+    return best["center_z"]
+
+
+def choose_membrane_center_z(modeller: Modeller, args: argparse.Namespace) -> float:
+    if args.membrane_center_z is not None:
+        return args.membrane_center_z
+
+    selected_positions = []
+    positions_nm = modeller.positions.value_in_unit(nanometer)
+    residue_range = args.membrane_center_residue_range
+    chain_ids = set(args.membrane_center_chain_ids or [])
+
+    if residue_range or chain_ids:
+        for atom in modeller.topology.atoms():
+            residue = atom.residue
+
+            if chain_ids and residue.chain.id not in chain_ids:
+                continue
+
+            if residue_range:
+                residue_id = parse_int_residue_id(residue.id)
+                if residue_id is None:
+                    continue
+                if residue_id < residue_range[0] or residue_id > residue_range[1]:
+                    continue
+
+            selected_positions.append(positions_nm[atom.index])
+
+        if not selected_positions:
+            raise ValueError(
+                "No atoms matched the membrane-centering selection. "
+                "Check --membrane_center_chain_ids and --membrane_center_residue_range."
+            )
+
+        z_values = [position[2] for position in selected_positions]
+        membrane_center_z = 0.5 * (min(z_values) + max(z_values))
+        selection = []
+        if chain_ids:
+            selection.append("chains=" + ",".join(sorted(chain_ids)))
+        if residue_range:
+            selection.append(f"residues={residue_range[0]}-{residue_range[1]}")
+        logging.info(
+            "Auto-selected membrane center z from "
+            f"{' '.join(selection)}: {membrane_center_z:.2f} nm"
+        )
+        return membrane_center_z
+
+    membrane_center_z = infer_membrane_center_z_from_hydrophobic_slab(
+        modeller,
+        args.membrane_auto_thickness,
+    )
+    if membrane_center_z is not None:
+        return membrane_center_z
+
+    z_values = [position[2] for position in positions_nm]
+    membrane_center_z = 0.5 * (min(z_values) + max(z_values))
+    logging.warning(
+        "Could not infer a hydrophobic membrane slab; falling back to all prepared atoms "
+        f"for membrane center z: {membrane_center_z:.2f} nm"
+    )
+
+    return membrane_center_z
+
+
 def validate_input_files(args: argparse.Namespace) -> None:
     ok = validate_existing_file(args.receptor, "Receptor")
 
@@ -1337,6 +1507,26 @@ def _glyco_choose_template_from_index(
     )
 
 
+def _glyco_choose_template_from_connectivity(
+    resname: str,
+    external_atoms: set[str],
+    incoming_links: list[tuple],
+) -> tuple[str | None, str, str] | None:
+    """Resolve common ambiguous GLYCAM terminal templates from parent linkage motifs."""
+    if resname == "GAL" and external_atoms == {"C1"}:
+        for parent, parent_atom, child_atom, _link in incoming_links:
+            parent_resname = parent.split(":")[0]
+            if parent_resname in {"NAG", "YB", "0YB", "3YB", "4YB", "6YB", "UYB", "VYB", "WYB", "QYB"}:
+                if parent_atom == "O4" and child_atom == "C1":
+                    return (
+                        "0LB",
+                        "motif",
+                        "Resolved terminal Gal-beta-1,4-GlcNAc motif from NAG O4 -> GAL C1 linkage",
+                    )
+
+    return None
+
+
 def _glyco_assign_templates(
     links: list[dict],
     glycan_residues: set[str],
@@ -1371,6 +1561,10 @@ def _glyco_assign_templates(
         resname = residue.split(":")[0]
         ext = external_atoms.get(residue, set())
         template, confidence, reason = _glyco_choose_template_from_index(resname, ext, template_index)
+        if template is None and confidence == "ambiguous":
+            connectivity_choice = _glyco_choose_template_from_connectivity(resname, ext, incoming.get(residue, []))
+            if connectivity_choice is not None:
+                template, confidence, reason = connectivity_choice
 
         assignments[residue] = {
             "resname": resname,
@@ -1862,12 +2056,7 @@ def run_prepare(args: argparse.Namespace) -> None:
     check_unmatched_residues(forcefield, modeller.topology, args, ignored_residues=ligand_residues_to_ignore)
 
     if args.membrane:
-        membrane_center_z = args.membrane_center_z
-        if membrane_center_z is None:
-            positions_nm = modeller.positions.value_in_unit(nanometer)
-            z_values = [position[2] for position in positions_nm]
-            membrane_center_z = 0.5 * (min(z_values) + max(z_values))
-            logging.info(f"Auto-selected membrane center z: {membrane_center_z:.2f} nm")
+        membrane_center_z = choose_membrane_center_z(modeller, args)
 
         logging.info(
             "Adding membrane, solvent, and ions "
@@ -2243,6 +2432,29 @@ def main() -> None:
         type=float,
         default=None,
         help="Membrane center position along z in nanometers. Defaults to the prepared complex z-midpoint.",
+    )
+
+    parser.add_argument(
+        "--membrane_center_chain_ids",
+        nargs="*",
+        default=[],
+        help="Optional chain IDs used to auto-select membrane center z.",
+    )
+
+    parser.add_argument(
+        "--membrane_center_residue_range",
+        nargs=2,
+        type=int,
+        default=None,
+        metavar=("START", "END"),
+        help="Optional residue-id range used to auto-select membrane center z.",
+    )
+
+    parser.add_argument(
+        "--membrane_auto_thickness",
+        type=float,
+        default=3.0,
+        help="Hydrophobic slab thickness in nanometers for automatic membrane center detection.",
     )
 
     parser.add_argument("--ph", type=float, default=7.4, help="pH used for hydrogen addition.")

@@ -10,6 +10,7 @@ The project is aimed at protein systems that may include:
 
 - Standard proteins
 - Protein-ligand complexes
+- Membrane protein-ligand complexes
 - Glycoproteins with GLYCAM templates
 - Embedded noncanonical amino acids supplied as OpenMM `ffxml`
 - Combinations of glycoproteins, ligands, and NCAAs
@@ -129,6 +130,15 @@ Common fields:
 - `hydrogen_mass`: hydrogen mass for H-mass repartitioning.
 - `ph`: pH used during hydrogen addition.
 - `water_model`: solvent model passed to `Modeller.addSolvent`.
+- `water_ff`: OpenMM water force-field XML file.
+- `membrane`: build a lipid membrane and water box with `Modeller.addMembrane`.
+- `lipid_type`: lipid type for OpenMM membrane building, for example `POPC`.
+- `lipid_ff`: OpenMM lipid force-field XML file used for membrane systems.
+- `membrane_padding`: minimum membrane/water padding in nanometers.
+- `membrane_center_z`: explicit membrane center along z in nanometers.
+- `membrane_center_chain_ids`: optional chain IDs used to auto-center the membrane.
+- `membrane_center_residue_range`: optional residue-id range used to auto-center the membrane.
+- `membrane_auto_thickness`: hydrophobic slab thickness used for automatic TM-window detection.
 - `metal_aware_protonation`: enabled by default; forces metal-aware residue variants such as histidine tautomers and deprotonated cysteine when donor atoms are close to a retained metal.
 - `metal_coordination_restraints`: optional harmonic restraints between retained metals and nearby N/O/S donor atoms.
 - `metal_coordination_cutoff`: metal-donor detection cutoff in Angstrom.
@@ -162,6 +172,45 @@ For metalloprotein or metal-coordinated ligand systems, use a config such as
 `examples/10_metal_coordinated_protein_ligand.json`. Metal-aware protonation is
 enabled by default, and that example also enables harmonic metal coordination
 restraints.
+
+## Membrane Systems
+
+Use a config such as `examples/11_membrane_ligand.json`:
+
+```json
+{
+  "receptor": "inputs/membrane_protein.pdb",
+  "ligand": "inputs/ligand.sdf",
+  "output_dir": "runs/membrane_ligand",
+  "prepare": true,
+  "membrane": true,
+  "lipid_type": "POPC",
+  "lipid_ff": "amber14/lipid17.xml",
+  "water_ff": "amber14/tip3p.xml",
+  "membrane_center_z": null,
+  "membrane_center_chain_ids": [],
+  "membrane_center_residue_range": null,
+  "membrane_auto_thickness": 3.0
+}
+```
+
+Membrane mode prepares the protein and optional ligand first, then calls OpenMM
+`Modeller.addMembrane()` to build the lipid bilayer, water, and ions around the
+complex. The input structure should already be oriented for a membrane in the XY
+plane.
+
+If `membrane_center_z` is set, that explicit z value is used. If it is `null`
+and no chain/range selection is provided, mojoeMD scans the oriented structure
+for a hydrophobic, z-spanning sequence window and centers the bilayer on that
+predicted transmembrane slab. `membrane_auto_thickness` controls the slab window
+in nanometers. If the heuristic is wrong for a difficult structure, set
+`membrane_center_chain_ids` and `membrane_center_residue_range` to anchor the
+center on known transmembrane residues.
+
+OpenMM's built-in membrane builder creates a single-lipid membrane from the
+selected `lipid_type`. For mixed or asymmetric membrane compositions, build the
+membrane externally and then use mojoeMD with force-field files that support the
+lipid residue names in that prepared structure.
 
 ## Glycoproteins
 
