@@ -10,6 +10,7 @@ The project is aimed at protein systems that may include:
 
 - Standard proteins
 - Protein-ligand complexes
+- Membrane protein-ligand complexes
 - Glycoproteins with GLYCAM templates
 - Embedded noncanonical amino acids supplied as OpenMM `ffxml`
 - Combinations of glycoproteins, ligands, and NCAAs
@@ -129,6 +130,15 @@ Common fields:
 - `hydrogen_mass`: hydrogen mass for H-mass repartitioning.
 - `ph`: pH used during hydrogen addition.
 - `water_model`: solvent model passed to `Modeller.addSolvent`.
+- `water_ff`: OpenMM water force-field XML file.
+- `membrane`: build a lipid membrane and water box with `Modeller.addMembrane`.
+- `lipid_type`: lipid type for OpenMM membrane building, for example `POPC`.
+- `lipid_ff`: OpenMM lipid force-field XML file used for membrane systems.
+- `membrane_padding`: minimum membrane/water padding in nanometers.
+- `membrane_center_z`: explicit membrane center along z in nanometers.
+- `membrane_center_chain_ids`: optional chain IDs used to auto-center the membrane.
+- `membrane_center_residue_range`: optional residue-id range used to auto-center the membrane.
+- `membrane_auto_thickness`: hydrophobic slab thickness used for automatic TM-window detection.
 - `metal_aware_protonation`: enabled by default; forces metal-aware residue variants such as histidine tautomers and deprotonated cysteine when donor atoms are close to a retained metal.
 - `metal_coordination_restraints`: optional harmonic restraints between retained metals and nearby N/O/S donor atoms.
 - `metal_coordination_cutoff`: metal-donor detection cutoff in Angstrom.
@@ -163,6 +173,45 @@ For metalloprotein or metal-coordinated ligand systems, use a config such as
 enabled by default, and that example also enables harmonic metal coordination
 restraints.
 
+## Membrane Systems
+
+Use a config such as `examples/11_membrane_ligand.json`:
+
+```json
+{
+  "receptor": "inputs/membrane_protein.pdb",
+  "ligand": "inputs/ligand.sdf",
+  "output_dir": "runs/membrane_ligand",
+  "prepare": true,
+  "membrane": true,
+  "lipid_type": "POPC",
+  "lipid_ff": "amber14/lipid17.xml",
+  "water_ff": "amber14/tip3p.xml",
+  "membrane_center_z": null,
+  "membrane_center_chain_ids": [],
+  "membrane_center_residue_range": null,
+  "membrane_auto_thickness": 3.0
+}
+```
+
+Membrane mode prepares the protein and optional ligand first, then calls OpenMM
+`Modeller.addMembrane()` to build the lipid bilayer, water, and ions around the
+complex. The input structure should already be oriented for a membrane in the XY
+plane.
+
+If `membrane_center_z` is set, that explicit z value is used. If it is `null`
+and no chain/range selection is provided, mojoeMD scans the oriented structure
+for a hydrophobic, z-spanning sequence window and centers the bilayer on that
+predicted transmembrane slab. `membrane_auto_thickness` controls the slab window
+in nanometers. If the heuristic is wrong for a difficult structure, set
+`membrane_center_chain_ids` and `membrane_center_residue_range` to anchor the
+center on known transmembrane residues.
+
+OpenMM's built-in membrane builder creates a single-lipid membrane from the
+selected `lipid_type`. For mixed or asymmetric membrane compositions, build the
+membrane externally and then use mojoeMD with force-field files that support the
+lipid residue names in that prepared structure.
+
 ## Glycoproteins
 
 Set `glycoprotein: true` and provide GLYCAM resources:
@@ -191,7 +240,20 @@ Debug output includes a pre-hydrogen PDB and residue/template bond dumps.
 
 ## Noncanonical Amino Acids
 
-NCAA mode preserves configured nonstandard residue names and requires matching OpenMM templates:
+NCAA mode preserves explicitly selected nonstandard residues and loads matching
+OpenMM residue templates. Identify each target by residue name, chain ID,
+residue number, and insertion code where applicable. Do not assume every
+`HETATM` residue is an NCAA: crystallographic ligands, terminal modifications,
+metals, and known modified amino acids require separate decisions.
+
+Before parameterization, inspect all nonstandard residues and determine whether
+each one should be preserved, replaced, removed, or parameterized. For example,
+Amber14 already contains force-field templates for hydroxyproline (`HYP`), but
+OpenMM's default hydrogen definitions may still be insufficient to add its
+hydrogens. Conversely, an unsupported terminal residue such as pyroglutamate
+(`PCA`) requires a terminally appropriate custom template if it is retained.
+
+A preparation configuration looks like:
 
 ```json
 {
@@ -204,14 +266,25 @@ NCAA mode preserves configured nonstandard residue names and requires matching O
 
 During preparation, the pipeline:
 
-- Loads custom NCAA `ffxml` files.
+- Tells PDBFixer which nonstandard residue names must remain unchanged.
+- Loads custom NCAA `ffxml` residue templates.
 - Loads sibling hydrogen-definition files named like `NCA_hydrogens.xml` when present.
 - Patches missing internal NCAA bonds from the residue `Bond` records in the `ffxml`.
 - Patches peptide bonds adjacent to NCAA residues.
+- Adds hydrogens with OpenMM `Modeller` and requires every residue to match a
+  loaded force-field template before solvation.
+
+Names listed in `ncaa_resnames` are preserved. If a known modified residue must
+remain present, list it too—even when its force-field template is already part
+of Amber—or PDBFixer may replace it. Only custom XML files belong in
+`ncaa_ffxml`.
 
 ## Generating NCAA Templates
 
-The helper script can extract a local charge fragment and build an OpenMM residue template from an AmberTools/antechamber MOL2 file.
+The helper extracts a local charge fragment and converts an AmberTools MOL2
+containing AM1-BCC charges into an OpenMM residue template. The extracted
+fragment normally includes the NCAA plus neighboring residues so that its
+charges reflect the peptide environment.
 
 Extract a fragment first:
 
@@ -226,7 +299,29 @@ python ncaa/generate_ncaa_ffxml_from_amber_mol2.py \
   --workdir ncaa_work
 ```
 
-After generating a charged MOL2 externally, build the template:
+Before running Antechamber, ensure the fragment contains its complete and
+chemically correct hydrogen set. Antechamber assigns charges and atom types; it
+does not reliably add missing hydrogens. A heavy-atom-only fragment can produce
+the wrong net charge, an odd-electron calculation, or an incomplete OpenMM
+template.
+
+Run Antechamber on the complete fragment, explicitly setting the charge of the
+**whole extracted fragment**, not merely the target residue. One representative
+command is:
+
+```bash
+antechamber \
+  -i ncaa_work/ALM_fragment_complete_h.pdb -fi pdb \
+  -o ncaa_work/ALM_fragment_amber.mol2 -fo mol2 \
+  -c bcc -nc 0 -at gaff2 -j 5 -dr no -pf y -s 2
+```
+
+Check the electron count and SQM convergence rather than changing `-nc` merely
+to silence an error. If altered SQM controls are scientifically justified, put
+them explicitly in the command and retain the command and `sqm.out` with the
+parameterization record.
+
+Then build the template:
 
 ```bash
 python ncaa/generate_ncaa_ffxml_from_amber_mol2.py \
@@ -236,6 +331,10 @@ python ncaa/generate_ncaa_ffxml_from_amber_mol2.py \
   --chain A \
   --resid 42 \
   --outdir ncaa \
+  --target-charge 0 \
+  --charge-correction uniform \
+  --type-source protein \
+  --atom-type-map ncaa_work/ALM_atom_type_map.json \
   --force
 ```
 
@@ -245,7 +344,54 @@ Outputs:
 - `ncaa/ALM_hydrogens.xml`
 - `ncaa/ALM_charge_report.json`
 
-Note: the script can use approximate ff14SB-compatible atom-type fallbacks, but those are compatibility aids, not a replacement for careful parameterization of novel chemistry.
+### Charges and atom types
+
+AM1-BCC supplies partial charges, but it does not supply the bonded and
+Lennard-Jones parameters needed by OpenMM. The generator therefore needs atom
+types already defined by a loaded force field:
+
+- Prefer an explicit `--atom-type-map` based on the NCAA's chemistry.
+- `--type-source protein` can reuse suitable ff14SB types for genuinely
+  protein-like functional groups.
+- `--allow-approximate-types` enables heuristic GAFF/MOL2-to-ff14SB mappings.
+  This is a compatibility aid for testing, not automatic publication-grade
+  parameterization.
+- `--type-source mol2` emits prefixed types, but those types are useful only
+  when a separate force-field XML defines their masses and nonbonded/bonded
+  parameters.
+
+Set `--target-charge` to the intended formal charge of the NCAA residue itself.
+The generator reports the raw charge extracted from the MOL2, the correction
+method, and the final residue-template charge. Neutralization is a deliberate
+chemical choice, not a default that is correct for every NCAA.
+
+Charge results can depend on neighboring residues and protonation state. If the
+same NCAA appears in substantially different chemical contexts, parameterize
+and review each context independently or deliberately adopt one transferable,
+validated parameter set.
+
+### Required validation
+
+Do not consider XML generation alone a successful parameterization. Run the
+complete mojoeMD preparation stage and verify that:
+
+1. The intended nonstandard residues were preserved and unwanted ones were
+   removed or replaced explicitly.
+2. The NCAA has every expected heavy atom and hydrogen with unique names.
+3. Internal and adjacent peptide bonds are present.
+4. Every residue matches exactly one force-field template after hydrogen
+   addition.
+5. The reported NCAA template charge matches the intended formal charge.
+6. `prepared.pdb` and the deserialized `system.xml` contain the same number of
+   atoms/particles.
+7. The preparation log, source fragment, hydrogenated fragment, MOL2, atom-type
+   map, XML files, configuration, commands, tool versions, and checksums are
+   retained for reproducibility.
+
+Parameters produced with approximate type mappings are appropriate for
+pipeline development and compatibility testing. Novel chemistry should receive
+independent charge, bonded-parameter, protonation, and conformational validation
+before production or publication-quality simulations.
 
 ## Trajectory Analysis
 
