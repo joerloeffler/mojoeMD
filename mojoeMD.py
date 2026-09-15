@@ -5,6 +5,7 @@ import json
 import logging
 import math
 import os
+import re
 import sys
 import time
 import xml.etree.ElementTree as ET
@@ -68,11 +69,17 @@ def setup_logging(log_file: str | Path) -> None:
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
         handlers=[logging.FileHandler(log_file, mode="w"), logging.StreamHandler(sys.stdout)],
+        force=True,
     )
 
 
-def resolve_config_path(value: str | None, config_dir: Path | None) -> str | None:
-    """Resolve a config path relative to its JSON file when that file exists."""
+def resolve_config_path(
+    value: str | None,
+    config_dir: Path | None,
+    *,
+    require_existing: bool = True,
+) -> str | None:
+    """Resolve a filesystem path relative to its JSON configuration."""
     if value is None or config_dir is None:
         return value
 
@@ -81,7 +88,7 @@ def resolve_config_path(value: str | None, config_dir: Path | None) -> str | Non
         return str(path)
 
     config_relative = config_dir / path
-    if config_relative.exists():
+    if config_relative.exists() or not require_existing:
         return str(config_relative)
 
     return value
@@ -91,18 +98,23 @@ def resolve_config_paths(args: argparse.Namespace, config_dir: Path | None) -> N
     if config_dir is None:
         return
 
-    args.receptor = resolve_config_path(args.receptor, config_dir)
-    args.ligand = resolve_config_path(args.ligand, config_dir)
+    args.receptor = resolve_config_path(args.receptor, config_dir, require_existing=False)
+    args.ligand = resolve_config_path(args.ligand, config_dir, require_existing=False)
 
     if args.ncaa_ffxml:
         args.ncaa_ffxml = [
-            resolve_config_path(ffxml, config_dir)
+            resolve_config_path(ffxml, config_dir, require_existing=False)
             for ffxml in args.ncaa_ffxml
         ]
 
     args.glycam_hydrogens = resolve_config_path(args.glycam_hydrogens, config_dir)
     args.water_ff = resolve_config_path(args.water_ff, config_dir)
     args.lipid_ff = resolve_config_path(args.lipid_ff, config_dir)
+
+    if args.output_dir:
+        output_path = Path(args.output_dir).expanduser()
+        if not output_path.is_absolute():
+            args.output_dir = str((config_dir / output_path).resolve())
 
 
 def validate_existing_file(path: str | None, label: str) -> bool:
@@ -635,7 +647,15 @@ def parametrize_ligand(ligand, forcefield: ForceField, lig_ff: str = "espaloma")
     logging.info(f"Parameterizing ligand with {lig_ff}...")
 
     if lig_ff == "espaloma":
-        template_generator = EspalomaTemplateGenerator(molecules=ligand, forcefield="espaloma-0.3.1")
+        available = tuple(EspalomaTemplateGenerator.INSTALLED_FORCEFIELDS)
+        if not available:
+            raise RuntimeError("No Espaloma force field is installed with openmmforcefields.")
+        espaloma_forcefield = sorted(available)[-1]
+        logging.info(f"Using installed Espaloma force field: {espaloma_forcefield}")
+        template_generator = EspalomaTemplateGenerator(
+            molecules=ligand,
+            forcefield=espaloma_forcefield,
+        )
     elif lig_ff == "smirnoff":
         template_generator = SMIRNOFFTemplateGenerator(molecules=ligand, forcefield="openff-2.1.0")
     else:
@@ -2216,7 +2236,6 @@ def run_production(args: argparse.Namespace) -> None:
     equil_state_path = os.path.join(args.output_dir, "equilibrated.xml")
 
     checkpoint_path = os.path.join(args.output_dir, "production.chk")
-    final_checkpoint_path = os.path.join(args.output_dir, "production_final.chk")
 
     if not all(os.path.exists(p) for p in [equil_system_path, equil_pdb_path]):
         logging.error("Cannot find equilibrated files. Please run --prepare and --equilibrate first.")
@@ -2235,7 +2254,17 @@ def run_production(args: argparse.Namespace) -> None:
     simulation = Simulation(topology, system, integrator, platform)
 
     if args.restart:
-        restart_candidates = [p for p in [final_checkpoint_path, checkpoint_path] if os.path.exists(p)]
+        restart_candidates = [
+            *Path(args.output_dir).glob("production_final_*.chk"),
+            *(
+                Path(path)
+                for path in (
+                    os.path.join(args.output_dir, "production_final.chk"),
+                    checkpoint_path,
+                )
+                if os.path.exists(path)
+            ),
+        ]
 
         if restart_candidates:
             latest_checkpoint = max(restart_candidates, key=os.path.getmtime)
@@ -2253,16 +2282,26 @@ def run_production(args: argparse.Namespace) -> None:
         logging.info(f"Loading state from {equil_state_path}")
         simulation.loadState(equil_state_path)
 
-    dcd_path = os.path.join(args.output_dir, "production.dcd")
-    log_path = os.path.join(args.output_dir, "production.csv")
+    segment = next_production_segment(args.output_dir)
+    dcd_path = os.path.join(args.output_dir, f"production_{segment:03d}.dcd")
+    log_path = os.path.join(args.output_dir, f"production_{segment:03d}.csv")
+    final_checkpoint_path = os.path.join(
+        args.output_dir,
+        f"production_final_{segment:03d}.chk",
+    )
+    logging.info(
+        "Writing production segment %03d to %s and %s",
+        segment,
+        dcd_path,
+        log_path,
+    )
 
     dt_ps = integrator.getStepSize().value_in_unit(picoseconds)
     report_interval_ps = 50
     report_interval = int(report_interval_ps / dt_ps)
     production_steps = int(args.prod_ns * 1000 / dt_ps)
 
-    checkpoint_interval_ps = 100000.0
-    checkpoint_interval = int(checkpoint_interval_ps / dt_ps)
+    checkpoint_interval = max(1, int(args.checkpoint_interval_ps / dt_ps))
 
     total_steps_for_reporter = simulation.currentStep + production_steps
 
@@ -2295,14 +2334,34 @@ def run_production(args: argparse.Namespace) -> None:
     logging.info("--- PRODUCTION STAGE COMPLETE ---")
 
 
-def main() -> None:
+def next_production_segment(output_dir: str | Path) -> int:
+    """Return the next unused numbered production trajectory segment."""
+    patterns = (
+        re.compile(r"^production_(\d+)\.(?:dcd|csv)$"),
+        re.compile(r"^production_final_(\d+)\.chk$"),
+    )
+    segments = []
+    for path in Path(output_dir).glob("production_*.*"):
+        for pattern in patterns:
+            match = pattern.match(path.name)
+            if match:
+                segments.append(int(match.group(1)))
+                break
+    return max(segments, default=-1) + 1
+
+
+def parse_arguments(
+    argv: list[str] | None = None,
+    stage_override: str | None = None,
+) -> argparse.Namespace:
+    """Parse CLI/config arguments without executing a pipeline stage."""
     conf_parser = argparse.ArgumentParser(
         description="A unified pipeline for OpenMM simulations.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         add_help=False,
     )
     conf_parser.add_argument("-c", "--config", help="Path to JSON config file.", metavar="FILE")
-    args, remaining_argv = conf_parser.parse_known_args()
+    args, remaining_argv = conf_parser.parse_known_args(argv)
 
     defaults = {}
     config_dir = None
@@ -2340,6 +2399,13 @@ def main() -> None:
     )
 
     parser.add_argument("--prod_ns", type=float, default=1.0, help="Length of production run in nanoseconds.")
+
+    parser.add_argument(
+        "--checkpoint_interval_ps",
+        type=float,
+        default=1000.0,
+        help="Interval between rolling production checkpoints in picoseconds.",
+    )
 
     parser.add_argument(
         "--lig_ff",
@@ -2571,7 +2637,23 @@ def main() -> None:
 
     parser.set_defaults(**defaults)
     args = parser.parse_args(remaining_argv)
+    # The lightweight config parser consumes this option before the full parser
+    # runs. Preserve it for logging and callers inspecting the namespace.
+    args.config = conf_parser.parse_known_args(argv)[0].config
     resolve_config_paths(args, config_dir)
+
+    if stage_override is not None:
+        if stage_override not in {"prepare", "equilibrate", "produce"}:
+            raise ValueError(f"Unknown pipeline stage: {stage_override}")
+        args.prepare = stage_override == "prepare"
+        args.equilibrate = stage_override == "equilibrate"
+        args.produce = stage_override == "produce"
+
+    return args
+
+
+def execute_pipeline(args: argparse.Namespace) -> None:
+    """Validate and execute stages represented by an argument namespace."""
 
     if not args.output_dir:
         print("ERROR: The --output_dir argument is required.")
@@ -2597,11 +2679,12 @@ def main() -> None:
         logging.error("No action requested. Please specify at least one stage: --prepare, --equilibrate, or --produce.")
         sys.exit(1)
 
-    if not args.receptor:
+    if args.prepare and not args.receptor:
         logging.error("The --receptor argument is required.")
         sys.exit(1)
 
-    validate_input_files(args)
+    if args.prepare:
+        validate_input_files(args)
 
     if args.prepare:
         run_prepare(args)
@@ -2613,6 +2696,11 @@ def main() -> None:
         run_production(args)
 
     logging.info("All defined steps completed.")
+
+
+def main(argv: list[str] | None = None) -> None:
+    """Backward-compatible command-line entry point."""
+    execute_pipeline(parse_arguments(argv))
 
 
 if __name__ == "__main__":

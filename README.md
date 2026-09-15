@@ -4,7 +4,7 @@
 
 # mojoeMD
 
-`mojoeMD` is a JSON-driven molecular dynamics workflow for OpenMM. It prepares solvated systems, equilibrates them, runs production MD, and includes companion tools for trajectory analysis, contact analysis, interaction-energy screening, and noncanonical amino acid (NCAA) residue-template generation.
+`mojoeMD` is an installable, JSON-driven molecular dynamics workflow for OpenMM. It prepares solvated systems, equilibrates them, runs production MD, and includes companion tools for trajectory analysis, contact analysis, interaction-energy screening, and noncanonical amino acid (NCAA) residue-template generation. The workflow can be used through the `mojoemd` command or imported as a Python library.
 
 The project is aimed at protein systems that may include:
 
@@ -18,7 +18,10 @@ The project is aimed at protein systems that may include:
 ## Repository Layout
 
 ```text
-mojoeMD.py                                      Main OpenMM prepare/equilibrate/production pipeline
+mojoemd/                                        Installed command-line and Python interfaces
+mojoeMD.py                                      Established OpenMM simulation engine and legacy CLI
+pyproject.toml                                  Python package metadata and console entry point
+environment.yml                                Reproducible Conda environment
 analysis/analyse_MD.py                         Trajectory post-processing and structural analyses
 analysis/contact_analysis.py                   getcontacts wrapper, contact mapping, optional energies/plots
 ncaa/generate_ncaa_ffxml_from_amber_mol2.py    NCAA ffxml/hydrogen-definition generator
@@ -30,7 +33,7 @@ examples/ncaa_work/                            Example NCAA intermediate files
 
 ## What The Main Pipeline Does
 
-`mojoeMD.py` has three stages:
+The main pipeline has three stages:
 
 1. `prepare`
    - Loads a receptor PDB with PDBFixer.
@@ -53,53 +56,183 @@ examples/ncaa_work/                            Example NCAA intermediate files
 3. `produce`
    - Loads the equilibrated system/state.
    - Runs production MD.
-   - Writes `production.dcd`, `production.csv`, `production.chk`, and `production_final.chk`.
-   - Supports restart from the newest production checkpoint with `--restart`.
+   - Writes numbered trajectory/report segments such as `production_000.dcd` and `production_000.csv`.
+   - Keeps a rolling `production.chk` and a numbered final checkpoint for every segment.
+   - Supports restart from the newest production checkpoint with `--restart` without overwriting earlier trajectories.
 
 ## Installation
 
-Create an environment with the scientific MD stack used by the scripts. Exact package names vary by platform, but a typical Conda setup is:
+From the repository root, create the complete environment and install mojoeMD in editable mode:
 
 ```bash
-conda create -n mojoemd -c conda-forge python=3.11 openmm pdbfixer mdtraj numpy scipy scikit-learn tqdm pandas matplotlib
-conda activate mojoemd
+mamba env create -f environment.yml
+conda activate mojoeMD
 ```
 
-For ligand support, also install OpenFF/RDKit/OpenMM force-field generators:
+The environment includes the OpenMM stack, AmberTools, ligand dependencies,
+analysis dependencies, Packmol 21.2.3, and the local package. Confirm the
+installation with:
 
 ```bash
-conda install -c conda-forge openff-toolkit rdkit openmmforcefields
+mojoemd --help
+python -c "import mojoemd; print(mojoemd.__version__)"
+packmol < /dev/null 2>&1 | head -n 5
+```
+
+To update an existing environment after changing `environment.yml`:
+
+```bash
+mamba env update -n mojoeMD -f environment.yml --prune
+conda activate mojoeMD
+python -m pip install --no-deps -e .
+```
+
+Because this is an editable installation, ordinary Python source changes are
+available immediately. Reinstall only when `pyproject.toml`, package entry
+points, or dependencies change:
+
+```bash
+conda activate mojoeMD
+cd /path/to/mojoeMD
+python -m pip install --no-deps --editable .
+hash -r
+mojoemd doctor
+```
+
+If dependencies in `environment.yml` changed, update the environment first:
+
+```bash
+mamba env update -n mojoeMD -f environment.yml --prune
+conda activate mojoeMD
+python -m pip install --no-deps --editable .
 ```
 
 For contact analysis, install `getcontacts` separately and either put its commands on `PATH` or set `getcontacts.path` in `analysis/contact.json`.
 
 ## Quick Start
 
-Run a complete standard protein workflow:
+For a standard soluble protein preparation, no JSON file is required:
 
 ```bash
-python mojoeMD.py -c examples/01_vanilla_protein.json
+mojoemd prepare --pdb TEST.pdb
+```
+
+This uses the documented defaults and writes beside the input PDB to
+`TEST_mojoemd/`. Choose another location with `--output-dir`. Common direct
+options include:
+
+```bash
+mojoemd prepare --pdb TEST.pdb --output-dir prepared_TEST --ph 7.0
+mojoemd prepare --pdb TEST.pdb --ligand LIGAND.sdf
+mojoemd prepare --pdb TEST.pdb --membrane
+mojoemd run --pdb TEST.pdb
+```
+
+`mojoemd run --pdb TEST.pdb` runs preparation, equilibration, and production
+with standard settings. JSON remains preferable for production work because it
+records every non-default choice, and is required for detailed NCAA,
+glycoprotein, metal-site, and membrane configurations.
+
+Run the stages enabled in a configuration:
+
+```bash
+mojoemd run -c examples/01_vanilla_protein.json
+```
+
+Continue later stages without a JSON file by pointing to the existing run
+directory:
+
+```bash
+mojoemd equilibrate --output-dir TEST_mojoemd
+mojoemd produce --output-dir TEST_mojoemd
+mojoemd produce --output-dir TEST_mojoemd --restart
+```
+
+Check the environment, Python modules, external programs, and available OpenMM
+platforms at any time:
+
+```bash
+mojoemd doctor
 ```
 
 Run only preparation:
 
 ```bash
-python mojoeMD.py -c examples/01_vanilla_protein.json --prepare
+mojoemd prepare -c examples/01_vanilla_protein.json
 ```
 
 Run production from an existing equilibrated state:
 
 ```bash
-python mojoeMD.py -c examples/01_vanilla_protein.json --produce
+mojoemd produce -c examples/01_vanilla_protein.json
 ```
 
 Restart production from the latest checkpoint:
 
 ```bash
-python mojoeMD.py -c examples/01_vanilla_protein.json --produce --restart
+mojoemd produce -c examples/01_vanilla_protein.json --restart
 ```
 
-Configuration values from JSON become command-line defaults. Any explicit CLI argument overrides the config value.
+One batch job can run the complete configured workflow; the stages do not need
+separate `sbatch` submissions:
+
+```bash
+#!/bin/bash
+#SBATCH --job-name=mojoemd
+#SBATCH --gres=gpu:1
+#SBATCH --time=24:00:00
+
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate mojoeMD
+mojoemd run -c /absolute/path/to/system.json
+```
+
+Set `prepare`, `equilibrate`, and `produce` to `true` in that JSON to run all
+three sequentially. Separate jobs are useful only when the cluster time limit
+or queue policy makes stage-level dependencies preferable.
+
+Every production invocation receives the next free number. A first run writes
+`production_000.dcd`, `production_000.csv`, and
+`production_final_000.chk`; a restart writes the corresponding `_001` files,
+and so on. Existing segments are never copied or overwritten. The rolling
+`production.chk` is deliberately replaced at each checkpoint, while completed
+numbered checkpoints are retained. Restart selection includes both the new
+numbered checkpoints and legacy `production_final.chk` files.
+
+The first `--` separates the installed command's arguments from advanced
+engine overrides. For example, `mojoemd prepare -c run.json -- --ph 6.5`
+overrides the configured pH. JSON values remain the defaults.
+
+Paths in JSON—including `receptor`, `ligand`, `ncaa_ffxml`, and `output_dir`—are
+resolved relative to the JSON file, not the shell's working directory. Absolute
+paths remain unchanged.
+
+The historical invocation remains available during the refactor:
+
+```bash
+python mojoeMD.py -c examples/01_vanilla_protein.json
+```
+
+## Python API
+
+The same workflow can be called from another module without constructing a
+subprocess:
+
+```python
+from mojoemd import prepare_system, run_pipeline
+
+prepared = prepare_system("configs/system.json")
+print(prepared.prepared_pdb, prepared.system_xml)
+
+# Alternatively, honor prepare/equilibrate/produce flags in the JSON file.
+result = run_pipeline("configs/system.json")
+print(result.output_dir)
+```
+
+Stage-specific functions are `prepare_system()`, `equilibrate_system()`, and
+`run_production()`. Each returns a `PipelineResult` containing the output
+directory and available primary files. Validation failures raise
+`PipelineExecutionError` instead of terminating the host Python process.
 
 ## Example Simulation Config
 
@@ -126,6 +259,7 @@ Common fields:
 - `output_dir`: run directory.
 - `prepare`, `equilibrate`, `produce`: stage toggles.
 - `prod_ns`: production length in nanoseconds.
+- `checkpoint_interval_ps`: rolling checkpoint interval in picoseconds; defaults to 1000 ps.
 - `timestep_fs`: integrator timestep.
 - `hydrogen_mass`: hydrogen mass for H-mass repartitioning.
 - `ph`: pH used during hydrogen addition.
@@ -233,7 +367,7 @@ The preparation code detects supported glycan links from PDB `LINK` records and/
 Useful glycoprotein debug flags:
 
 ```bash
-python mojoeMD.py -c examples/09_prepare_only_debug_glycoprotein.json
+mojoemd prepare -c examples/09_prepare_only_debug_glycoprotein.json
 ```
 
 Debug output includes a pre-hydrogen PDB and residue/template bond dumps.
@@ -372,8 +506,8 @@ validated parameter set.
 
 ### Required validation
 
-Do not consider XML generation alone a successful parameterization. Run the
-complete mojoeMD preparation stage and verify that:
+Do not consider XML generation alone a successful parameterization. Run
+`mojoemd prepare -c <config.json>` and verify that:
 
 1. The intended nonstandard residues were preserved and unwanted ones were
    removed or replaced explicitly.
@@ -468,7 +602,7 @@ The energy calculation is a lightweight Coulomb + Lennard-Jones screen. It is us
 
 - Input PDB quality matters. Missing atoms, ambiguous chain IDs, unsupported glycan linkages, or unmatched NCAA residues will stop preparation.
 - Metal sites need special care. Metal-aware protonation prevents hydrogens from being added to coordinating histidine nitrogens or cysteine sulfurs, but monatomic metal ions are still nonbonded particles unless `metal_coordination_restraints` or a dedicated metal-site model is used.
-- `mojoeMD.py` currently uses Amber14 protein and TIP3P-FB force-field XML files by default.
+- mojoeMD currently uses Amber14 protein and TIP3P-FB force-field XML files by default.
 - `water_model` is passed to OpenMM solvent building; keep it compatible with the loaded water XML.
 - Production reports DCD frames every 50 ps.
 - Production checkpointing is configured at a long interval; final checkpoint is always written at the end of a successful run.
@@ -479,7 +613,8 @@ The energy calculation is a lightweight Coulomb + Lennard-Jones screen. It is us
 Basic syntax check:
 
 ```bash
-python -m py_compile mojoeMD.py analysis/analyse_MD.py analysis/contact_analysis.py ncaa/generate_ncaa_ffxml_from_amber_mol2.py
+python -m unittest discover -s tests -v
+python -m py_compile mojoeMD.py mojoemd/*.py analysis/analyse_MD.py analysis/contact_analysis.py ncaa/generate_ncaa_ffxml_from_amber_mol2.py
 ```
 
 Most functional checks require installed MD dependencies and realistic molecular input files.

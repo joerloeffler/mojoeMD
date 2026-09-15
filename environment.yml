@@ -1,0 +1,23 @@
+name: mojoeMD
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - ambertools
+  - matplotlib
+  - mdtraj
+  - numpy
+  - openff-toolkit
+  - openmm
+  - openmmforcefields
+  - openmmtools
+  - pandas
+  - pdbfixer
+  - rdkit
+  - scikit-learn
+  - scipy
+  - tqdm
+  - pip
+  - pip:
+      - packmol==21.2.3
+      - --editable=.

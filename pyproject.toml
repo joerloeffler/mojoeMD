@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mojoemd"
+version = "0.1.0"
+description = "Callable OpenMM preparation and molecular-dynamics workflows"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {file = "LICENSE"}
+dependencies = [
+  "numpy",
+  "openmm",
+  "pdbfixer",
+  "tqdm",
+]
+
+[project.optional-dependencies]
+ligand = ["openff-toolkit", "openmmforcefields", "rdkit"]
+analysis = ["matplotlib", "mdtraj", "pandas", "scikit-learn", "scipy"]
+
+[project.scripts]
+mojoemd = "mojoemd.cli:main"
+
+[tool.setuptools]
+packages = ["mojoemd"]
+py-modules = ["mojoeMD"]
