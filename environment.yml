@@ -6,6 +6,7 @@ dependencies:
   - ambertools=24.8
   # Espaloma's DGL/PyTorch stack currently requires this tested compatibility set.
   - espaloma=0.4.0
+  - qcportal=0.63
   - dgl=2.3.0
   - numpy=1.26.4
   - openmm=8.4.0

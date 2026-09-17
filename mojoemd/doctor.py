@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import importlib.util
+import importlib
 import shutil
 import sys
 from importlib.metadata import PackageNotFoundError, version
@@ -59,12 +59,14 @@ def run_doctor() -> bool:
 
     for label, module in MODULES.items():
         try:
-            found = importlib.util.find_spec(module) is not None
-        except (ImportError, ModuleNotFoundError):
-            found = False
-        healthy &= found
-        detail = _distribution_version(module) if found else "MISSING"
-        print(f"[{'OK' if found else '!!'}] {label}: {detail}")
+            importlib.import_module(module)
+            imported = True
+            detail = _distribution_version(module)
+        except Exception as exc:
+            imported = False
+            detail = f"BROKEN ({type(exc).__name__}: {exc})"
+        healthy &= imported
+        print(f"[{'OK' if imported else '!!'}] {label}: {detail}")
 
     for executable in EXECUTABLES:
         environment_executable = Path(sys.prefix) / "bin" / executable
