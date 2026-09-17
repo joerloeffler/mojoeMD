@@ -315,6 +315,14 @@ def choose_membrane_center_z(modeller: Modeller, args: argparse.Namespace) -> fl
     return membrane_center_z
 
 
+def discard_input_periodic_box(topology: Topology) -> bool:
+    """Clear an inherited box before constructing a new solvated system."""
+    if topology.getPeriodicBoxVectors() is None:
+        return False
+    topology.setPeriodicBoxVectors(None)
+    return True
+
+
 def validate_input_files(args: argparse.Namespace) -> None:
     ok = validate_existing_file(args.receptor, "Receptor")
 
@@ -650,8 +658,15 @@ def parametrize_ligand(ligand, forcefield: ForceField, lig_ff: str = "espaloma")
         available = tuple(EspalomaTemplateGenerator.INSTALLED_FORCEFIELDS)
         if not available:
             raise RuntimeError("No Espaloma force field is installed with openmmforcefields.")
-        espaloma_forcefield = sorted(available)[-1]
-        logging.info(f"Using installed Espaloma force field: {espaloma_forcefield}")
+        cache_path = Path.home() / ".espaloma"
+        cached_models = sorted(cache_path.glob("espaloma-*.pt"))
+        espaloma_forcefield = (
+            str(cached_models[-1])
+            if cached_models
+            else sorted(available)[-1]
+        )
+        source = "cached" if cached_models else "supported"
+        logging.info(f"Using {source} Espaloma force field: {espaloma_forcefield}")
         template_generator = EspalomaTemplateGenerator(
             molecules=ligand,
             forcefield=espaloma_forcefield,
@@ -2074,6 +2089,13 @@ def run_prepare(args: argparse.Namespace) -> None:
         logging.info("Ligand added to the system.")
 
     check_unmatched_residues(forcefield, modeller.topology, args, ignored_residues=ligand_residues_to_ignore)
+
+    # Solvation and membrane construction create a new periodic box.  Do not
+    # inherit placeholder CRYST1 records (PyMOL commonly writes a 1 A cube),
+    # since Modeller.addMembrane() otherwise uses that invalid box and its
+    # packing relaxation can immediately produce NaN coordinates.
+    if discard_input_periodic_box(modeller.topology):
+        logging.info("Discarding input periodic box before constructing the solvated system.")
 
     if args.membrane:
         membrane_center_z = choose_membrane_center_z(modeller, args)

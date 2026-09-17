@@ -2,21 +2,25 @@ name: mojoeMD
 channels:
   - conda-forge
 dependencies:
-  - python=3.11
-  - ambertools
-  - matplotlib
-  - mdtraj
-  - numpy
-  - openff-toolkit
-  - openmm
-  - openmmforcefields
-  - openmmtools
-  - pandas
-  - pdbfixer
-  - rdkit
-  - scikit-learn
-  - scipy
-  - tqdm
+  - python=3.11.14
+  - ambertools=24.8
+  # Espaloma's DGL/PyTorch stack currently requires this tested compatibility set.
+  - espaloma=0.4.0
+  - dgl=2.3.0
+  - numpy=1.26.4
+  - openmm=8.4.0
+  - openmmforcefields=0.15.1
+  - pytorch=2.3.1
+  - matplotlib-base=3.10.8
+  - mdtraj=1.11.0
+  - openff-toolkit=0.18.0
+  - openmmtools=0.25.3
+  - pandas=2.3.3
+  - pdbfixer=1.12
+  - rdkit=2025.09.4
+  - scikit-learn=1.7.2
+  - scipy=1.16.3
+  - tqdm=4.67.1
   - pip
   - pip:
       - packmol==21.2.3

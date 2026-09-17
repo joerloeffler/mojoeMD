@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from mojoemd import PipelineExecutionError
-from mojoemd.api import prepare_system, run_pipeline
+from mojoemd.api import _load_engine, prepare_system, run_pipeline
 from mojoemd.cli import build_parser, main
 
 
@@ -85,6 +85,12 @@ class PipelineApiTests(unittest.TestCase):
             str((self.root / "TEST_mojoemd").resolve()),
             run.call_args.kwargs["cli_overrides"],
         )
+
+    def test_real_engine_loader_does_not_resolve_to_package(self):
+        engine = _load_engine()
+        self.assertTrue(callable(engine.parse_arguments))
+        self.assertTrue(callable(engine.execute_pipeline))
+        self.assertTrue(str(engine.__file__).endswith("mojoeMD.py"))
 
 
 if __name__ == "__main__":

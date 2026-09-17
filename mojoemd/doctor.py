@@ -17,6 +17,7 @@ MODULES = {
     "OpenFF Toolkit": "openff.toolkit",
     "OpenMMForceFields": "openmmforcefields",
     "OpenMMTools": "openmmtools",
+    "Espaloma": "espaloma",
     "RDKit": "rdkit",
     "MDTraj": "mdtraj",
     "pandas": "pandas",
@@ -44,6 +45,18 @@ def run_doctor() -> bool:
     print("mojoeMD doctor")
     print("---------------")
     healthy = True
+
+    try:
+        from .api import _load_engine
+
+        engine = _load_engine()
+        engine_ok = callable(engine.parse_arguments) and callable(engine.execute_pipeline)
+        healthy &= engine_ok
+        print(f"[{'OK' if engine_ok else '!!'}] Pipeline engine: {engine.__file__}")
+    except Exception as exc:
+        healthy = False
+        print(f"[!!] Pipeline engine: {exc}")
+
     for label, module in MODULES.items():
         try:
             found = importlib.util.find_spec(module) is not None

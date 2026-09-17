@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-ligand = ["openff-toolkit", "openmmforcefields", "rdkit"]
+ligand = ["espaloma", "openff-toolkit", "openmmforcefields", "rdkit"]
 analysis = ["matplotlib", "mdtraj", "pandas", "scikit-learn", "scipy"]
 
 [project.scripts]

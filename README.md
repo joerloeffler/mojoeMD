@@ -70,7 +70,7 @@ conda activate mojoeMD
 ```
 
 The environment includes the OpenMM stack, AmberTools, ligand dependencies,
-analysis dependencies, Packmol 21.2.3, and the local package. Confirm the
+Espaloma 0.4.0, analysis dependencies, Packmol 21.2.3, and the local package. Confirm the
 installation with:
 
 ```bash

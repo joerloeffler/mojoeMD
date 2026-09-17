@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import importlib.util
 from pathlib import Path
+import sys
 from typing import Any, Iterable, Sequence
 
 
@@ -15,10 +17,19 @@ class PipelineExecutionError(RuntimeError):
 
 
 def _load_engine() -> Any:
-    # Keep package metadata, ``--help``, and downstream imports lightweight.
-    import mojoeMD
+    """Load the legacy engine by path, avoiding macOS case-folding collisions."""
+    module_name = "_mojoemd_engine"
+    if module_name in sys.modules:
+        return sys.modules[module_name]
 
-    return mojoeMD
+    engine_path = Path(__file__).resolve().parent.parent / "mojoeMD.py"
+    spec = importlib.util.spec_from_file_location(module_name, engine_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not load mojoeMD engine from {engine_path}")
+    engine = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = engine
+    spec.loader.exec_module(engine)
+    return engine
 
 
 @dataclass(frozen=True)
