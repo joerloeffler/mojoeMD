@@ -21,6 +21,7 @@ from openmm.app import (
     DCDReporter,
     ForceField,
     HBonds,
+    NoCutoff,
     Modeller,
     PDBFile,
     Simulation,
@@ -323,8 +324,60 @@ def discard_input_periodic_box(topology: Topology) -> bool:
     return True
 
 
+PROTEIN_FORCE_FIELDS = (
+    "amber14/protein.ff14SB.xml",
+    "amber14/protein.ff15ipq.xml",
+    "amber19/protein.ff19SB.xml",
+    "amber19/protein.ff19ipq.xml",
+    "amber96.xml", "amber99sb.xml", "amber99sbildn.xml",
+    "amber99sbnmr.xml", "amber03.xml", "amber10.xml", "amberfb15.xml",
+    "charmm36.xml", "charmm36_2024.xml",
+)
+
+
+def configure_protein_force_field(args: argparse.Namespace) -> None:
+    """Choose matching defaults and reject unsupported module combinations."""
+    if args.protein_ff not in PROTEIN_FORCE_FIELDS:
+        raise ValueError(f"Unsupported protein_ff: {args.protein_ff}")
+    charmm = args.protein_ff.startswith("charmm")
+    legacy_amber = not charmm and "/" not in args.protein_ff
+    family = args.protein_ff.removesuffix(".xml") if charmm else "amber14"
+    if args.glycoprotein and args.protein_ff not in (
+        "amber14/protein.ff14SB.xml", "amber19/protein.ff19SB.xml",
+    ):
+        raise ValueError(
+            "The GLYCAM glycosylation module requires amber14/protein.ff14SB.xml or "
+            "amber19/protein.ff19SB.xml. IPQ, CHARMM, and legacy Amber glycoproteins "
+            "are not supported by the current GLYCAM templates."
+        )
+    if charmm and (args.ligand or args.ncaa):
+        raise ValueError(
+            "CHARMM protein force fields are not supported with the current ligand/NCAA "
+            "modules, which use Amber-compatible parameters and 1-4 scaling."
+        )
+    if args.water_ff is None:
+        args.water_ff = (f"{family}/water.xml" if charmm else
+                         "tip3p.xml" if legacy_amber else "amber14/tip3pfb.xml")
+    if charmm and not args.water_ff.startswith(f"{family}/"):
+        raise ValueError(f"{args.protein_ff} requires a matching {family}/ water force field.")
+    if not charmm and args.water_ff.startswith("charmm"):
+        raise ValueError("Amber protein force fields cannot use CHARMM water parameters.")
+    if legacy_amber and args.water_ff.startswith(("amber14/", "amber19/")):
+        raise ValueError(
+            "Legacy Amber XML files already contain ion templates. Use a standalone water XML "
+            "such as tip3p.xml to avoid duplicate ions from Amber14/Amber19 water files."
+        )
+    if args.lipid_ff is None:
+        args.lipid_ff = args.protein_ff if charmm else "amber14/lipid17.xml"
+    if charmm and args.membrane and args.lipid_ff != args.protein_ff:
+        raise ValueError("CHARMM membrane parameters are already bundled in protein_ff; omit lipid_ff.")
+    if not charmm and args.membrane and args.lipid_ff.startswith("charmm"):
+        raise ValueError("Amber protein force fields cannot use CHARMM lipid parameters.")
+
+
 def validate_input_files(args: argparse.Namespace) -> None:
     ok = validate_existing_file(args.receptor, "Receptor")
+    ok = validate_openmm_app_data_file(args.protein_ff, "Protein force field") and ok
 
     if args.ligand:
         ok = validate_existing_file(args.ligand, "Ligand") and ok
@@ -334,6 +387,7 @@ def validate_input_files(args: argparse.Namespace) -> None:
             ok = validate_existing_file(ffxml, "NCAA ffxml") and ok
 
     if args.glycoprotein:
+        ok = validate_openmm_app_data_file(args.glycam_xml, "GLYCAM force field") and ok
         ok = validate_openmm_app_data_file(args.glycam_hydrogens, "GLYCAM hydrogen definitions") and ok
 
     ok = validate_openmm_app_data_file(args.water_ff, "Water force field") and ok
@@ -632,14 +686,27 @@ def prepare_ligand(lig_sdf_file: str | Path, residue_name: str | None = None):
     if not _has_openff:
         raise ImportError("OpenFF Toolkit and RDKit are required for ligand preparation.")
 
-    from openff.toolkit import Molecule
-    from rdkit.Chem import SDMolSupplier
+    from rdkit.Chem import BondType, SDMolSupplier
 
     logging.info(f"Loading ligand from {lig_sdf_file}...")
     rdkit_mol = SDMolSupplier(str(lig_sdf_file))[0]
 
     if rdkit_mol is None:
         raise ValueError(f"Could not read ligand from SDF file: {lig_sdf_file}")
+
+    invalid_aromatic_bonds = [
+        bond for bond in rdkit_mol.GetBonds()
+        if bond.GetBondType() == BondType.AROMATIC and not bond.IsInRing()
+    ]
+    if invalid_aromatic_bonds:
+        raise ValueError(
+            f"Invalid ligand bond encoding in {lig_sdf_file}: "
+            f"{len(invalid_aromatic_bonds)} aromatic bond(s) outside rings. "
+            "Provide explicit single/double bond orders and formal charges; "
+            "automatic correction would require choosing the ligand's chemistry."
+        )
+
+    from openff.toolkit import Molecule
 
     ligand = Molecule.from_rdkit(rdkit_mol, allow_undefined_stereo=True)
     ligand.name = pdb_safe_residue_name(residue_name or Path(lig_sdf_file).stem)
@@ -698,6 +765,13 @@ def check_unmatched_residues(
     args: argparse.Namespace,
     ignored_residues: set | None = None,
 ) -> None:
+    if args.protein_ff.startswith("charmm"):
+        # getUnmatchedResidues only matches base templates, omitting CHARMM
+        # terminal and multi-residue patches. createSystem applies those patches
+        # and checks parameter completeness without creating a simulation context.
+        forcefield.createSystem(topology, nonbondedMethod=NoCutoff)
+        logging.info("All residues matched by CHARMM templates and patches.")
+        return
     ignored_residues = ignored_residues or set()
     unmatched = [
         residue
@@ -2000,11 +2074,14 @@ def prepare_glycoprotein_modeller(
 def run_prepare(args: argparse.Namespace) -> None:
     logging.info("--- STAGE 1: SYSTEM PREPARATION ---")
 
-    forcefield_files = ["amber14/protein.ff14SB.xml"]
+    configure_protein_force_field(args)
+    forcefield_files = [args.protein_ff]
+    logging.info(f"Protein force field: {args.protein_ff}")
 
     if args.membrane:
         logging.info("Membrane mode enabled: adding lipid force field.")
-        forcefield_files.append(args.lipid_ff)
+        if args.lipid_ff not in forcefield_files:
+            forcefield_files.append(args.lipid_ff)
 
     forcefield_files.append(args.water_ff)
 
@@ -2453,6 +2530,13 @@ def parse_arguments(
     )
 
     parser.add_argument(
+        "--protein_ff",
+        choices=PROTEIN_FORCE_FIELDS,
+        default="amber14/protein.ff14SB.xml",
+        help="OpenMM protein force field. GLYCAM requires ff14SB or ff19SB; CHARMM supports protein-only and membrane preparation.",
+    )
+
+    parser.add_argument(
         "--water_model",
         default="tip3p",
         help="Water box model name passed to Modeller.addSolvent. Keep tip3p when using amber14/tip3pfb.xml.",
@@ -2460,8 +2544,8 @@ def parse_arguments(
 
     parser.add_argument(
         "--water_ff",
-        default="amber14/tip3pfb.xml",
-        help="OpenMM water force-field XML file.",
+        default=None,
+        help="OpenMM water XML. Defaults to Amber14/19 TIP3P-FB, legacy Amber standalone TIP3P, or the selected CHARMM family water.xml.",
     )
 
     parser.add_argument(
@@ -2504,8 +2588,8 @@ def parse_arguments(
 
     parser.add_argument(
         "--lipid_ff",
-        default="amber14/lipid17.xml",
-        help="OpenMM lipid force-field XML file used when --membrane is enabled.",
+        default=None,
+        help="Membrane lipid XML. Defaults to Amber lipid17 or bundled CHARMM parameters.",
     )
 
     parser.add_argument(
@@ -2662,6 +2746,10 @@ def parse_arguments(
     # The lightweight config parser consumes this option before the full parser
     # runs. Preserve it for logging and callers inspecting the namespace.
     args.config = conf_parser.parse_known_args(argv)[0].config
+    try:
+        configure_protein_force_field(args)
+    except ValueError as error:
+        parser.error(str(error))
     resolve_config_paths(args, config_dir)
 
     if stage_override is not None:

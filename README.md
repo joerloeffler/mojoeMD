@@ -18,8 +18,8 @@ The project is aimed at protein systems that may include:
 ## Repository Layout
 
 ```text
-mojoemd/                                        Installed command-line and Python interfaces
-mojoeMD.py                                      Established OpenMM simulation engine and legacy CLI
+mojoemd/                                        Modular simulation engine, analysis, CLI, and Python API
+mojoeMD.py                                      Independent original engine and legacy CLI
 pyproject.toml                                  Python package metadata and console entry point
 environment.yml                                Reproducible Conda environment
 analysis/analyse_MD.py                         Trajectory post-processing and structural analyses
@@ -346,7 +346,100 @@ selected `lipid_type`. For mixed or asymmetric membrane compositions, build the
 membrane externally and then use mojoeMD with force-field files that support the
 lipid residue names in that prepared structure.
 
+## Protein force fields
+
+Choose OpenMM's bundled protein parameters through `--protein_ff` or the JSON
+`protein_ff` key. The default remains `amber14/protein.ff14SB.xml`.
+
+```json
+{
+  "protein_ff": "amber19/protein.ff19SB.xml"
+}
+```
+
+Supported choices:
+
+- Amber14: `amber14/protein.ff14SB.xml`, `amber14/protein.ff15ipq.xml`
+- Amber19: `amber19/protein.ff19SB.xml`, `amber19/protein.ff19ipq.xml`
+- Older Amber: `amber96.xml`, `amber99sb.xml`, `amber99sbildn.xml`,
+  `amber99sbnmr.xml`, `amber03.xml`, `amber10.xml`, `amberfb15.xml`
+- CHARMM: `charmm36.xml`, `charmm36_2024.xml` (includes CHARMM36m protein parameters)
+
+Availability depends on the installed OpenMM version; preparation checks that
+selected XML files exist. Polarizable force fields are not supported by this pipeline.
+
+Amber14/Amber19 component models default to `amber14/tip3pfb.xml` water.
+Legacy Amber models default to standalone `tip3p.xml`, since their protein XML
+already includes ions; Amber14/Amber19 water XML would duplicate ion templates
+and is rejected for those models. Amber models default to `amber14/lipid17.xml` lipids.
+CHARMM defaults to its matching `charmm36/water.xml` or
+`charmm36_2024/water.xml`; its lipid parameters are bundled in the main XML.
+Explicit `water_ff` and `lipid_ff` settings override these defaults, with family
+checks for CHARMM. Select water parameters appropriate to your protein model;
+loading successfully does not validate the scientific suitability of a combination.
+
+For GLYCAM compatibility limits and validation scope, see
+[Glycoproteins](#glycoproteins). CHARMM also rejects the current ligand and NCAA modules, which use
+Amber-compatible parameters. Custom NCAA parameters must be appropriate for
+the selected protein model. CHARMM protein-only and membrane runs are supported;
+patched termini may require hydrogens already present in the input.
+
+See the [OpenMM force-field documentation](https://docs.openmm.org/latest/userguide/application/02_running_sims.html#force-fields)
+for parameter sets, water models, and CHARMM input requirements.
+
+Run the [preparation integration tests](tests/README.md) to check supported
+force fields and module combinations without running equilibration or production.
+
+### Validated module combinations
+
+All rows include a solvated protein. “Tested” means real preparation, system
+serialization, retained-chemistry checks, and finite initial energy/forces passed
+in the [2026-10-01 validation](tests/validation_2026-10-01.md).
+
+| Protein selection | Protein only | Ligand | Membrane | Membrane + ligand | GLYCAM and NCAA combinations |
+| --- | --- | --- | --- | --- | --- |
+| ff14SB, ff19SB | Tested | Tested, both ligand methods | Tested | Tested, both ligand methods | All 16 on/off combinations of glycan, membrane, ligand and NCAA tested; NCAA uses the supplied AIB parameters |
+| ff15ipq, ff19ipq | Tested | Tested, both ligand methods | Tested | Tested, both ligand methods | GLYCAM blocked; NCAA requires compatible custom parameters and is not covered by this matrix |
+| Legacy Amber: amber96, amber99sb, amber99sbildn, amber99sbnmr, amber03, amber10, amberfb15 | Tested | Tested, both ligand methods | Tested | Tested, both ligand methods | GLYCAM blocked; NCAA requires compatible custom parameters and is not covered by this matrix |
+| CHARMM36, CHARMM36 2024 | Tested | Blocked | Tested | Blocked | GLYCAM and NCAA blocked |
+
+Both ligand methods means `lig_ff: "smirnoff"` and `lig_ff: "espaloma"`.
+The membrane matrix uses POPC. These results do not cover every lipid, water
+model, glycan chemistry or NCAA parameter set, or establish dynamics stability.
+The consolidated run passed 112 real preparations and 15 expected configuration
+rejections; the original malformed copper-site ligand remains rejected, and the
+positive copper-site tests use a valid replacement test ligand.
+
+To switch force fields, set `protein_ff` to one of the XML paths above and rerun
+`mojoemd prepare -c system.json` in a new output directory. Omit `water_ff` and
+`lipid_ff` to use the matching defaults described above, or update explicit
+settings for the selected family. Changing `protein_ff` only for equilibration,
+production or restart does not replace the parameters: those stages load the
+previously serialized system. Prepare and equilibrate a new system before
+starting production with the new force field.
+
 ## Glycoproteins
+
+The current GLYCAM module supports these protein force-field selections:
+
+| Protein force field | GLYCAM compatibility in mojoeMD |
+| --- | --- |
+| `amber14/protein.ff14SB.xml` | Allowed; default. XML loading with GLYCAM tested. |
+| `amber19/protein.ff19SB.xml` | Allowed. XML loading with GLYCAM tested. |
+| `amber14/protein.ff15ipq.xml`, `amber19/protein.ff19ipq.xml` | Blocked: the GLYCAM XML references protein atom types absent from IPQ. |
+| `charmm36.xml`, `charmm36_2024.xml` | Blocked: CHARMM uses different residue templates and nonbonded 1-4 scaling from the current GLYCAM module. |
+| Legacy Amber selections | Blocked: unsupported by the current GLYCAM preparation path. |
+
+Unsupported combinations produce a clear error before preparation starts.
+These checks prevent incompatible combinations from running; they do not add
+IPQ or CHARMM glycosylation support. Supporting those combinations would require
+compatible parameters and changes to the glycosylation module.
+
+GLYCAM retains its own glycosylated ASN (`NLN`) parameters when switching to
+ff19SB. The [preparation integration suite](tests/README.md) exercises real
+preparation for the allowed combinations. It does not run equilibration or
+production MD. OpenMM also documents
+[Amber19 with GLYCAM](https://docs.openmm.org/latest/userguide/application/02_running_sims.html#amber19).
 
 Set `glycoprotein: true` and provide GLYCAM resources:
 
@@ -642,3 +735,31 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+
+## Modular engine migration
+
+The modular engine is the default for the installed `mojoemd` command,
+`python -m mojoemd`, and the Python API. Select the original implementation
+explicitly with `--backend legacy` or `backend="legacy"`. Explicit
+`--backend modular` remains supported.
+`mojoeMD.py` remains available as the independent fallback. The current full
+Espaloma behavior and environment are preserved.
+
+See [the migration record](REFACTOR.md) for module responsibilities, acceptance
+gates, and reproducible validation commands. Analysis is also available through
+`mojoemd analyse --config analysis.json` and
+`mojoemd contacts --config contacts.json`.
+
+The [2026-11-06 example validation](tests/validation_2026-11-06_examples.md)
+records preparation checks for all 11 example templates with documented local
+input substitutions. Outputs and logs are under `dev/modular_prep_check/`.
+
+```bash
+python -m mojoemd run --config run.json                   # modular default
+python -m mojoemd run --config run.json --backend legacy  # original engine
+```
+
+Example input paths and NCAA names are placeholders; supply real inputs or use
+the effective configs retained in the validation directory. The original engine
+still has the checkpoint filename bug described in the migration record.

@@ -1,4 +1,4 @@
-"""Callable orchestration API backed by the established mojoeMD engine."""
+"""Callable orchestration API with legacy and modular execution backends."""
 
 from __future__ import annotations
 
@@ -10,10 +10,11 @@ from typing import Any, Iterable, Sequence
 
 
 VALID_STAGES = ("prepare", "equilibrate", "produce")
+DEFAULT_BACKEND = "modular"
 
 
 class PipelineExecutionError(RuntimeError):
-    """A legacy engine validation or execution step terminated unsuccessfully."""
+    """An engine validation or execution step terminated unsuccessfully."""
 
 
 def _load_engine() -> Any:
@@ -30,6 +31,15 @@ def _load_engine() -> Any:
     sys.modules[module_name] = engine
     spec.loader.exec_module(engine)
     return engine
+
+
+def _select_engine(backend: str) -> Any:
+    if backend == "legacy":
+        return _load_engine()
+    if backend == "modular":
+        from . import pipeline
+        return pipeline
+    raise ValueError(f"Unknown engine backend: {backend}")
 
 
 @dataclass(frozen=True)
@@ -71,19 +81,21 @@ def run_pipeline(
     *,
     stages: Sequence[str] | None = None,
     cli_overrides: Sequence[str] = (),
+    backend: str = DEFAULT_BACKEND,
 ) -> PipelineResult:
     """Run configured stages and return their output paths.
 
     ``cli_overrides`` uses the compatibility parser syntax, for example
     ``("--ph", "6.5")``. When ``stages`` is omitted, stage booleans are read
-    from the JSON configuration.
+    from the JSON configuration. The modular engine is the default;
+    ``backend="legacy"`` explicitly selects the original implementation.
     """
     requested = tuple(stages) if stages is not None else None
     if requested is not None:
         unknown = sorted(set(requested) - set(VALID_STAGES))
         if unknown:
             raise ValueError(f"Unknown pipeline stages: {', '.join(unknown)}")
-    engine = _load_engine()
+    engine = _select_engine(backend)
     argv = (["--config", str(config)] if config is not None else []) + list(cli_overrides)
     try:
         args = engine.parse_arguments(argv)
@@ -99,16 +111,16 @@ def run_pipeline(
     return _result(args.output_dir, active)
 
 
-def prepare_system(config: str | Path, *, cli_overrides: Sequence[str] = ()) -> PipelineResult:
+def prepare_system(config: str | Path, *, cli_overrides: Sequence[str] = (), backend: str = DEFAULT_BACKEND) -> PipelineResult:
     """Run only system preparation."""
-    return run_pipeline(config, stages=("prepare",), cli_overrides=cli_overrides)
+    return run_pipeline(config, stages=("prepare",), cli_overrides=cli_overrides, backend=backend)
 
 
-def equilibrate_system(config: str | Path, *, cli_overrides: Sequence[str] = ()) -> PipelineResult:
+def equilibrate_system(config: str | Path, *, cli_overrides: Sequence[str] = (), backend: str = DEFAULT_BACKEND) -> PipelineResult:
     """Run only equilibration using an existing prepared system."""
-    return run_pipeline(config, stages=("equilibrate",), cli_overrides=cli_overrides)
+    return run_pipeline(config, stages=("equilibrate",), cli_overrides=cli_overrides, backend=backend)
 
 
-def run_production(config: str | Path, *, cli_overrides: Sequence[str] = ()) -> PipelineResult:
+def run_production(config: str | Path, *, cli_overrides: Sequence[str] = (), backend: str = DEFAULT_BACKEND) -> PipelineResult:
     """Run only production using an existing equilibrated system."""
-    return run_pipeline(config, stages=("produce",), cli_overrides=cli_overrides)
+    return run_pipeline(config, stages=("produce",), cli_overrides=cli_overrides, backend=backend)

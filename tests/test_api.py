@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from mojoemd import PipelineExecutionError
-from mojoemd.api import _load_engine, prepare_system, run_pipeline
+from mojoemd.api import _load_engine, equilibrate_system, prepare_system, run_pipeline, run_production
 from mojoemd.cli import build_parser, main
 
 
@@ -46,7 +46,7 @@ class PipelineApiTests(unittest.TestCase):
 
     def test_prepare_convenience_function_forces_only_prepare(self):
         engine = FakeEngine()
-        with patch("mojoemd.api._load_engine", return_value=engine):
+        with patch("mojoemd.api._select_engine", return_value=engine):
             result = prepare_system(self.config)
 
         self.assertEqual(result.stages, ("prepare",))
@@ -56,13 +56,13 @@ class PipelineApiTests(unittest.TestCase):
 
     def test_configured_stages_are_preserved(self):
         engine = FakeEngine()
-        with patch("mojoemd.api._load_engine", return_value=engine):
+        with patch("mojoemd.api._select_engine", return_value=engine):
             result = run_pipeline(self.config)
 
         self.assertEqual(result.stages, ("prepare",))
 
     def test_legacy_system_exit_becomes_library_exception(self):
-        with patch("mojoemd.api._load_engine", return_value=FakeEngine(fail=True)):
+        with patch("mojoemd.api._select_engine", return_value=FakeEngine(fail=True)):
             with self.assertRaises(PipelineExecutionError):
                 prepare_system(self.config)
 
@@ -71,6 +71,28 @@ class PipelineApiTests(unittest.TestCase):
             ["produce", "--config", str(self.config), "--restart"]
         )
         self.assertTrue(args.restart)
+
+    def test_cli_defaults_to_modular_and_accepts_both_explicit_backends(self):
+        parser = build_parser()
+        self.assertEqual(parser.parse_args(["prepare", "--pdb", "test.pdb"]).backend, "modular")
+        for backend in ("modular", "legacy"):
+            self.assertEqual(parser.parse_args([
+                "prepare", "--pdb", "test.pdb", "--backend", backend,
+            ]).backend, backend)
+
+    def test_api_defaults_to_modular(self):
+        for function in (run_pipeline, prepare_system, equilibrate_system, run_production):
+            with self.subTest(function=function.__name__):
+                with patch("mojoemd.api._select_engine", return_value=FakeEngine()) as select:
+                    function(self.config)
+                select.assert_called_once_with("modular")
+
+    def test_explicit_legacy_backend_remains_available(self):
+        engine = FakeEngine()
+        with patch("mojoemd.api._load_engine", return_value=engine) as load:
+            result = run_pipeline(self.config, backend="legacy")
+        load.assert_called_once_with()
+        self.assertEqual(result.stages, ("prepare",))
 
     def test_direct_prepare_derives_output_directory(self):
         pdb = self.root / "TEST.pdb"

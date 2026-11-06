@@ -24,5 +24,7 @@ analysis = ["matplotlib", "mdtraj", "pandas", "scikit-learn", "scipy"]
 mojoemd = "mojoemd.cli:main"
 
 [tool.setuptools]
-packages = ["mojoemd"]
 py-modules = ["mojoeMD"]
+
+[tool.setuptools.packages.find]
+include = ["mojoemd*"]

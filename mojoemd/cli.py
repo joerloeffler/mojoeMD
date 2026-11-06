@@ -6,7 +6,7 @@ import argparse
 from collections.abc import Sequence
 from pathlib import Path
 
-from .api import PipelineExecutionError, run_pipeline
+from .api import DEFAULT_BACKEND, PipelineExecutionError, run_pipeline
 from .doctor import run_doctor
 
 
@@ -30,6 +30,8 @@ def build_parser() -> argparse.ArgumentParser:
         command.add_argument("--ligand", help="Optional ligand SDF")
         command.add_argument("--membrane", action="store_true", help="Build the standard POPC membrane system")
         command.add_argument("--ph", type=float, help="Preparation pH")
+        command.add_argument("--backend", choices=("modular", "legacy"), default=DEFAULT_BACKEND,
+                             help="Execution engine (default: modular); legacy selects the original implementation")
         if name == "produce":
             command.add_argument(
                 "--restart",
@@ -42,14 +44,24 @@ def build_parser() -> argparse.ArgumentParser:
             help="Compatibility overrides passed after '--', for example: -- --ph 6.5",
         )
     subparsers.add_parser("doctor", help="Check the mojoeMD installation and external tools.")
+    for name in ("analyse", "contacts"):
+        command = subparsers.add_parser(name, help=f"Run {name} with an analysis JSON configuration")
+        command.add_argument("-c", "--config", required=True)
+        command.add_argument("--loglevel", default="INFO")
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     print(BUNNY)
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
     if args.command == "doctor":
         return 0 if run_doctor() else 1
+    if args.command in {"analyse", "contacts"}:
+        from importlib import import_module
+        analysis = import_module(f"mojoemd.{args.command}")
+        analysis.main(["--config", args.config, "--loglevel", args.loglevel])
+        return 0
 
     if not args.config and args.command in {"prepare", "run"} and not args.pdb:
         parser.error(f"{args.command} requires either --pdb or --config")
@@ -80,7 +92,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         overrides.extend(("--ph", str(args.ph)))
 
     try:
-        result = run_pipeline(args.config, stages=stages, cli_overrides=overrides)
+        result = run_pipeline(args.config, stages=stages, cli_overrides=overrides, backend=args.backend)
     except PipelineExecutionError as exc:
         parser.error(str(exc))
     print(f"mojoeMD completed {', '.join(result.stages)} -> {result.output_dir}")

@@ -1,0 +1,17 @@
+{
+  "protein_source": "dev/refactor_retests/ncaa_glycan/AiB_test_AIB_minimized.pdb",
+  "protein_source_sha256": "0427d707155357008183075df806767dbc773732ac308d633ef2954cdaba5e46",
+  "selections": {
+    "protein": "A:62-66",
+    "glycan": "C:1-2 (NAG dimer attached to ASN A:64)",
+    "ncaa": "B:14-18 (AIB B:16)"
+  },
+  "changes": "Fragments truncated; coordinates translated near z=5 nm, matching the test membrane center. Missing terminal atoms are repaired by PDBFixer. The glycan keeps its source coordinates relative to its peptide. This is a software fixture, not a biological membrane model.",
+  "ligand": "RDKit ethanol (CCO), explicit hydrogens; EmbedMolecule seed 20261001; MMFF optimization; translated away from peptides.",
+  "ncaa_parameters": "Copied existing AIB test parameters, using Amber protein atom types; suitable for regression tests, not validated for publication.",
+  "invalid_ligand": {
+    "source": "dev/inputs/ligand.sdf",
+    "sha256": "85a834e9932780a9dbe1ce95c322c5eb5830bfeea3db8b4f5c7f98d0ec81b18f",
+    "changes": "None; malformed non-ring aromatic bond encoding retained for a negative test."
+  }
+}

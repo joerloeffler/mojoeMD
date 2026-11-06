@@ -1,0 +1,34 @@
+<?xml version="1.0" ?>
+<ForceField>
+  <Residues>
+    <Residue name="AIB">
+      <Atom name="N" type="protein-N" charge="-0.36007677"/>
+      <Atom name="CA" type="protein-CT" charge="0.07592323"/>
+      <Atom name="C" type="protein-C" charge="0.28692323"/>
+      <Atom name="O" type="protein-O" charge="-0.36407677"/>
+      <Atom name="CB1" type="protein-CT" charge="-0.22957677"/>
+      <Atom name="CB2" type="protein-CT" charge="-0.22957677"/>
+      <Atom name="H" type="protein-H" charge="0.23692323"/>
+      <Atom name="HB11" type="protein-HC" charge="0.09725623"/>
+      <Atom name="HB12" type="protein-HC" charge="0.09725623"/>
+      <Atom name="HB13" type="protein-HC" charge="0.09725623"/>
+      <Atom name="HB21" type="protein-HC" charge="0.09725623"/>
+      <Atom name="HB22" type="protein-HC" charge="0.09725623"/>
+      <Atom name="HB23" type="protein-HC" charge="0.09725623"/>
+      <Bond atomName1="N" atomName2="CA"/>
+      <Bond atomName1="N" atomName2="H"/>
+      <Bond atomName1="CA" atomName2="C"/>
+      <Bond atomName1="CA" atomName2="CB1"/>
+      <Bond atomName1="CA" atomName2="CB2"/>
+      <Bond atomName1="C" atomName2="O"/>
+      <Bond atomName1="CB1" atomName2="HB11"/>
+      <Bond atomName1="CB1" atomName2="HB12"/>
+      <Bond atomName1="CB1" atomName2="HB13"/>
+      <Bond atomName1="CB2" atomName2="HB21"/>
+      <Bond atomName1="CB2" atomName2="HB22"/>
+      <Bond atomName1="CB2" atomName2="HB23"/>
+      <ExternalBond atomName="C"/>
+      <ExternalBond atomName="N"/>
+    </Residue>
+  </Residues>
+</ForceField>
