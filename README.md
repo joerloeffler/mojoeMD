@@ -622,11 +622,47 @@ before production or publication-quality simulations.
 
 ## Trajectory Analysis
 
-Run:
+Edit `topology_pdb` and `trajectory` in `analysis/analyse.json` to point to your
+simulation output, then run from the repository directory:
 
 ```bash
-python analysis/analyse_MD.py -c analysis/analyse.json
+python -m mojoemd analyse -c analysis/analyse.json
 ```
+
+The template selects `production_*.dcd` in the working directory and writes one
+combined `processed.dcd`. Its default `stride: 10` keeps every tenth frame across
+the complete sequence; set `stride: 1` to retain every frame.
+
+The modular analysis combines numbered `production_*.dcd` segments in numeric
+order before processing. Set `trajectory` to a production directory or glob,
+or omit it to discover segments beside `topology_pdb`. A numbered filename also
+selects its sibling production segments. An old `production.dcd` setting falls
+back to numbered segments when that legacy file does not exist; an existing
+legacy file remains a single-file input.
+
+```json
+{
+  "topology_pdb": "my_run/equilibrated.pdb",
+  "trajectory": "my_run/production_*.dcd",
+  "output_dir": "analysis_out",
+  "stride": 10,
+  "write_processed": true
+}
+```
+
+`analysis_out/processed.dcd` contains the combined frames after configured
+stripping, imaging, and alignment (`write_processed` defaults to true). All
+analyses use the combined sequence. Contact analysis can continue to use this
+single processed file. Use an explicit list of filenames to restrict/reorder
+segments; a one-item list analyses only that file. Stride is applied globally
+across segment boundaries. Frames are not automatically deduplicated.
+
+Paths remain relative to the working directory. DCD timestamps can reset at
+restart; set `time.dt_ps` to the effective frame spacing **after stride** for
+continuous CSV time axes. Absolute simulation times require the production
+reports. The independent legacy `analysis/analyse_MD.py` retains its original
+single-file loading behavior.
+
 
 The analysis pipeline can:
 
@@ -661,10 +697,13 @@ analysis_out/cluster_representatives/
 Run:
 
 ```bash
-python analysis/contact_analysis.py -c analysis/contact.json
+python -m mojoemd contacts -c analysis/contact.json
 ```
 
-`contact_analysis.py` can:
+The contact template uses `analysis_out/processed.dcd`, so running trajectory
+analysis first gives contact analysis the combined production sequence too.
+Keep its structure/topology path matched to `processed_topology.pdb` when atoms
+were stripped. The contact pipeline can:
 
 - Run `getcontacts` dynamically or statically.
 - Parse existing getcontacts TSV files.

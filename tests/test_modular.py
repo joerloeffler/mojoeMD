@@ -92,6 +92,8 @@ class ModularParityTests(unittest.TestCase):
             for name, node in old_funcs.items():
                 if name == 'main':
                     continue  # CLI now accepts an explicit argv.
+                if new == 'analyse' and name == 'load_traj':
+                    continue  # Segmented loading is covered by real DCD regression tests.
                 with self.subTest(module=new, name=name):
                     self.assertEqual(ast.dump(node), ast.dump(new_funcs[name]))
 

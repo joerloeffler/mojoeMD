@@ -46,6 +46,8 @@ try:
 except ImportError as e:
     raise SystemExit("mdtraj is required. Install e.g.: pip install mdtraj") from e
 
+from mojoemd.trajectories import load_trajectory_series
+
 try:
     from sklearn.decomposition import PCA as SKPCA
     from sklearn.cluster import AgglomerativeClustering
@@ -171,10 +173,10 @@ def chain_label_from_mdtraj_residue(
 # --------------------------------------------------------------------------------------
 
 
-def load_traj(top_pdb: str | Path, traj_path: str | Path, stride: int = 1) -> md.Trajectory:
+def load_traj(top_pdb: str | Path, traj_path: str | Path | list[str], stride: int = 1) -> md.Trajectory:
     logging.info(f"Loading topology: {top_pdb}")
     logging.info(f"Loading trajectory: {traj_path} (stride={stride})")
-    t = md.load(str(traj_path), top=str(top_pdb), stride=int(stride))
+    t = load_trajectory_series(top_pdb, traj_path, stride=stride)
     logging.info(f"Loaded: n_frames={t.n_frames}, n_atoms={t.n_atoms}")
     return t
 
@@ -1122,7 +1124,7 @@ def main(argv: list[str] | None = None) -> None:
     setup_logging(outdir, level=args.loglevel)
 
     top_pdb = cfg["topology_pdb"]
-    traj_path = cfg["trajectory"]
+    traj_path = cfg.get("trajectory", str(Path(top_pdb).parent))
     stride = int(cfg.get("stride", 1))
 
     pdb_chain_map = _parse_pdb_residue_chain_map(top_pdb)
