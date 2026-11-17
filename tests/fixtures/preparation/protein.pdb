@@ -1,0 +1,38 @@
+REMARK 950 SOFTWARE PREPARATION FIXTURE; TRUNCATED AND TRANSLATED FRAGMENTS
+REMARK   1 CREATED WITH OPENMM 8.4, 2026-10-01
+ATOM      1  N   ALA A  62      -3.335  -0.639  54.628  1.00  0.00           N  
+ATOM      2  CA  ALA A  62      -3.072  -1.998  54.173  1.00  0.00           C  
+ATOM      3  C   ALA A  62      -3.116  -2.118  52.654  1.00  0.00           C  
+ATOM      4  O   ALA A  62      -2.445  -2.987  52.089  1.00  0.00           O  
+ATOM      5  CB  ALA A  62      -4.073  -2.963  54.802  1.00  0.00           C  
+ATOM      6  N   SER A  63      -3.879  -1.273  52.008  1.00  0.00           N  
+ATOM      7  CA  SER A  63      -3.982  -1.318  50.558  1.00  0.00           C  
+ATOM      8  C   SER A  63      -2.858  -0.562  49.861  1.00  0.00           C  
+ATOM      9  O   SER A  63      -2.770  -0.597  48.633  1.00  0.00           O  
+ATOM     10  CB  SER A  63      -5.332  -0.748  50.112  1.00  0.00           C  
+ATOM     11  OG  SER A  63      -5.449   0.619  50.474  1.00  0.00           O  
+ATOM     12  N   ASN A  64      -2.001   0.102  50.619  1.00  0.00           N  
+ATOM     13  CA  ASN A  64      -0.951   0.936  50.048  1.00  0.00           C  
+ATOM     14  C   ASN A  64       0.414   0.335  50.348  1.00  0.00           C  
+ATOM     15  O   ASN A  64       0.997   0.592  51.404  1.00  0.00           O  
+ATOM     16  CB  ASN A  64      -1.057   2.354  50.606  1.00  0.00           C  
+ATOM     17  CG  ASN A  64      -0.064   3.302  49.977  1.00  0.00           C  
+ATOM     18  ND2 ASN A  64      -0.041   4.544  50.448  1.00  0.00           N  
+ATOM     19  OD1 ASN A  64       0.689   2.922  49.064  1.00  0.00           O  
+ATOM     20  N   LEU A  65       0.910  -0.447  49.424  1.00  0.00           N  
+ATOM     21  CA  LEU A  65       2.224  -1.056  49.559  1.00  0.00           C  
+ATOM     22  C   LEU A  65       3.308  -0.267  48.835  1.00  0.00           C  
+ATOM     23  O   LEU A  65       4.439  -0.746  48.714  1.00  0.00           O  
+ATOM     24  CB  LEU A  65       2.193  -2.500  49.055  1.00  0.00           C  
+ATOM     25  CG  LEU A  65       1.260  -3.442  49.812  1.00  0.00           C  
+ATOM     26  CD1 LEU A  65       1.281  -4.831  49.190  1.00  0.00           C  
+ATOM     27  CD2 LEU A  65       1.646  -3.508  51.280  1.00  0.00           C  
+ATOM     28  N   THR A  66       2.982   0.910  48.363  1.00  0.00           N  
+ATOM     29  CA  THR A  66       3.950   1.759  47.682  1.00  0.00           C  
+ATOM     30  C   THR A  66       4.521   2.835  48.593  1.00  0.00           C  
+ATOM     31  O   THR A  66       5.289   3.684  48.134  1.00  0.00           O  
+ATOM     32  CB  THR A  66       3.314   2.423  46.455  1.00  0.00           C  
+ATOM     33  CG2 THR A  66       2.721   1.368  45.528  1.00  0.00           C  
+ATOM     34  OG1 THR A  66       2.287   3.329  46.872  1.00  0.00           O  
+TER      35      THR A  66
+END

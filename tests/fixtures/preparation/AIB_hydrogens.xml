@@ -1,0 +1,12 @@
+<?xml version="1.0" ?>
+<Residues>
+  <Residue name="AIB">
+    <H name="H" parent="N"/>
+    <H name="HB11" parent="CB1"/>
+    <H name="HB12" parent="CB1"/>
+    <H name="HB13" parent="CB1"/>
+    <H name="HB21" parent="CB2"/>
+    <H name="HB22" parent="CB2"/>
+    <H name="HB23" parent="CB2"/>
+  </Residue>
+</Residues>

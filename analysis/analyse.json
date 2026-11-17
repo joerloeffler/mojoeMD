@@ -1,7 +1,8 @@
 {
   "topology_pdb": "equilibrated.pdb",
-  "trajectory": "production.dcd",
+  "trajectory": "production_*.dcd",
   "output_dir": "analysis_out",
+  "write_processed": true,
 
   "stride": 10,
 

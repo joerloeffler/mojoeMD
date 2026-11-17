@@ -5,6 +5,7 @@ import json
 import logging
 import math
 import os
+import re
 import sys
 import time
 import xml.etree.ElementTree as ET
@@ -20,6 +21,7 @@ from openmm.app import (
     DCDReporter,
     ForceField,
     HBonds,
+    NoCutoff,
     Modeller,
     PDBFile,
     Simulation,
@@ -57,7 +59,8 @@ except ImportError:
         raise RuntimeError("No OpenMM platform is available.")
 
 _has_openff = (
-    importlib.util.find_spec("openff.toolkit") is not None
+    importlib.util.find_spec("openff") is not None
+    and importlib.util.find_spec("openff.toolkit") is not None
     and importlib.util.find_spec("rdkit") is not None
     and importlib.util.find_spec("openmmforcefields") is not None
 )
@@ -68,11 +71,17 @@ def setup_logging(log_file: str | Path) -> None:
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
         handlers=[logging.FileHandler(log_file, mode="w"), logging.StreamHandler(sys.stdout)],
+        force=True,
     )
 
 
-def resolve_config_path(value: str | None, config_dir: Path | None) -> str | None:
-    """Resolve a config path relative to its JSON file when that file exists."""
+def resolve_config_path(
+    value: str | None,
+    config_dir: Path | None,
+    *,
+    require_existing: bool = True,
+) -> str | None:
+    """Resolve a filesystem path relative to its JSON configuration."""
     if value is None or config_dir is None:
         return value
 
@@ -81,7 +90,7 @@ def resolve_config_path(value: str | None, config_dir: Path | None) -> str | Non
         return str(path)
 
     config_relative = config_dir / path
-    if config_relative.exists():
+    if config_relative.exists() or not require_existing:
         return str(config_relative)
 
     return value
@@ -91,18 +100,23 @@ def resolve_config_paths(args: argparse.Namespace, config_dir: Path | None) -> N
     if config_dir is None:
         return
 
-    args.receptor = resolve_config_path(args.receptor, config_dir)
-    args.ligand = resolve_config_path(args.ligand, config_dir)
+    args.receptor = resolve_config_path(args.receptor, config_dir, require_existing=False)
+    args.ligand = resolve_config_path(args.ligand, config_dir, require_existing=False)
 
     if args.ncaa_ffxml:
         args.ncaa_ffxml = [
-            resolve_config_path(ffxml, config_dir)
+            resolve_config_path(ffxml, config_dir, require_existing=False)
             for ffxml in args.ncaa_ffxml
         ]
 
     args.glycam_hydrogens = resolve_config_path(args.glycam_hydrogens, config_dir)
     args.water_ff = resolve_config_path(args.water_ff, config_dir)
     args.lipid_ff = resolve_config_path(args.lipid_ff, config_dir)
+
+    if args.output_dir:
+        output_path = Path(args.output_dir).expanduser()
+        if not output_path.is_absolute():
+            args.output_dir = str((config_dir / output_path).resolve())
 
 
 def validate_existing_file(path: str | None, label: str) -> bool:
@@ -303,8 +317,67 @@ def choose_membrane_center_z(modeller: Modeller, args: argparse.Namespace) -> fl
     return membrane_center_z
 
 
+def discard_input_periodic_box(topology: Topology) -> bool:
+    """Clear an inherited box before constructing a new solvated system."""
+    if topology.getPeriodicBoxVectors() is None:
+        return False
+    topology.setPeriodicBoxVectors(None)
+    return True
+
+
+PROTEIN_FORCE_FIELDS = (
+    "amber14/protein.ff14SB.xml",
+    "amber14/protein.ff15ipq.xml",
+    "amber19/protein.ff19SB.xml",
+    "amber96.xml", "amber99sb.xml", "amber99sbildn.xml",
+    "amber99sbnmr.xml", "amber03.xml", "amber10.xml", "amberfb15.xml",
+    "charmm36.xml", "charmm36_2024.xml",
+)
+
+
+def configure_protein_force_field(args: argparse.Namespace) -> None:
+    """Choose matching defaults and reject unsupported module combinations."""
+    if args.protein_ff not in PROTEIN_FORCE_FIELDS:
+        raise ValueError(f"Unsupported protein_ff: {args.protein_ff}")
+    charmm = args.protein_ff.startswith("charmm")
+    legacy_amber = not charmm and "/" not in args.protein_ff
+    family = args.protein_ff.removesuffix(".xml") if charmm else "amber14"
+    if args.glycoprotein and args.protein_ff not in (
+        "amber14/protein.ff14SB.xml", "amber19/protein.ff19SB.xml",
+    ):
+        raise ValueError(
+            "The GLYCAM glycosylation module requires amber14/protein.ff14SB.xml or "
+            "amber19/protein.ff19SB.xml. IPQ, CHARMM, and legacy Amber glycoproteins "
+            "are not supported by the current GLYCAM templates."
+        )
+    if charmm and (args.ligand or args.ncaa):
+        raise ValueError(
+            "CHARMM protein force fields are not supported with the current ligand/NCAA "
+            "modules, which use Amber-compatible parameters and 1-4 scaling."
+        )
+    if args.water_ff is None:
+        args.water_ff = (f"{family}/water.xml" if charmm else
+                         "tip3p.xml" if legacy_amber else "amber14/tip3pfb.xml")
+    if charmm and not args.water_ff.startswith(f"{family}/"):
+        raise ValueError(f"{args.protein_ff} requires a matching {family}/ water force field.")
+    if not charmm and args.water_ff.startswith("charmm"):
+        raise ValueError("Amber protein force fields cannot use CHARMM water parameters.")
+    if legacy_amber and args.water_ff.startswith(("amber14/", "amber19/")):
+        raise ValueError(
+            "Legacy Amber XML files already contain ion templates. Use a standalone water XML "
+            "such as tip3p.xml to avoid duplicate ions from Amber14/Amber19 water files."
+        )
+    if args.lipid_ff is None:
+        args.lipid_ff = args.protein_ff if charmm else "amber14/lipid17.xml"
+    if charmm and args.membrane and args.lipid_ff != args.protein_ff:
+        raise ValueError("CHARMM membrane parameters are already bundled in protein_ff; omit lipid_ff.")
+    if not charmm and args.membrane and args.lipid_ff.startswith("charmm"):
+        raise ValueError("Amber protein force fields cannot use CHARMM lipid parameters.")
+
+
 def validate_input_files(args: argparse.Namespace) -> None:
     ok = validate_existing_file(args.receptor, "Receptor")
+    ok = validate_openmm_app_data_file(args.protein_ff, "Protein force field") and ok
 
     if args.ligand:
         ok = validate_existing_file(args.ligand, "Ligand") and ok
@@ -314,6 +387,7 @@ def validate_input_files(args: argparse.Namespace) -> None:
             ok = validate_existing_file(ffxml, "NCAA ffxml") and ok
 
     if args.glycoprotein:
+        ok = validate_openmm_app_data_file(args.glycam_xml, "GLYCAM force field") and ok
         ok = validate_openmm_app_data_file(args.glycam_hydrogens, "GLYCAM hydrogen definitions") and ok
 
     ok = validate_openmm_app_data_file(args.water_ff, "Water force field") and ok
@@ -612,14 +686,27 @@ def prepare_ligand(lig_sdf_file: str | Path, residue_name: str | None = None):
     if not _has_openff:
         raise ImportError("OpenFF Toolkit and RDKit are required for ligand preparation.")
 
-    from openff.toolkit import Molecule
-    from rdkit.Chem import SDMolSupplier
+    from rdkit.Chem import BondType, SDMolSupplier
 
     logging.info(f"Loading ligand from {lig_sdf_file}...")
     rdkit_mol = SDMolSupplier(str(lig_sdf_file))[0]
 
     if rdkit_mol is None:
         raise ValueError(f"Could not read ligand from SDF file: {lig_sdf_file}")
+
+    invalid_aromatic_bonds = [
+        bond for bond in rdkit_mol.GetBonds()
+        if bond.GetBondType() == BondType.AROMATIC and not bond.IsInRing()
+    ]
+    if invalid_aromatic_bonds:
+        raise ValueError(
+            f"Invalid ligand bond encoding in {lig_sdf_file}: "
+            f"{len(invalid_aromatic_bonds)} aromatic bond(s) outside rings. "
+            "Provide explicit single/double bond orders and formal charges; "
+            "automatic correction would require choosing the ligand's chemistry."
+        )
+
+    from openff.toolkit import Molecule
 
     ligand = Molecule.from_rdkit(rdkit_mol, allow_undefined_stereo=True)
     ligand.name = pdb_safe_residue_name(residue_name or Path(lig_sdf_file).stem)
@@ -635,7 +722,22 @@ def parametrize_ligand(ligand, forcefield: ForceField, lig_ff: str = "espaloma")
     logging.info(f"Parameterizing ligand with {lig_ff}...")
 
     if lig_ff == "espaloma":
-        template_generator = EspalomaTemplateGenerator(molecules=ligand, forcefield="espaloma-0.3.1")
+        available = tuple(EspalomaTemplateGenerator.INSTALLED_FORCEFIELDS)
+        if not available:
+            raise RuntimeError("No Espaloma force field is installed with openmmforcefields.")
+        cache_path = Path.home() / ".espaloma"
+        cached_models = sorted(cache_path.glob("espaloma-*.pt"))
+        espaloma_forcefield = (
+            str(cached_models[-1])
+            if cached_models
+            else sorted(available)[-1]
+        )
+        source = "cached" if cached_models else "supported"
+        logging.info(f"Using {source} Espaloma force field: {espaloma_forcefield}")
+        template_generator = EspalomaTemplateGenerator(
+            molecules=ligand,
+            forcefield=espaloma_forcefield,
+        )
     elif lig_ff == "smirnoff":
         template_generator = SMIRNOFFTemplateGenerator(molecules=ligand, forcefield="openff-2.1.0")
     else:
@@ -663,6 +765,13 @@ def check_unmatched_residues(
     args: argparse.Namespace,
     ignored_residues: set | None = None,
 ) -> None:
+    if args.protein_ff.startswith("charmm"):
+        # getUnmatchedResidues only matches base templates, omitting CHARMM
+        # terminal and multi-residue patches. createSystem applies those patches
+        # and checks parameter completeness without creating a simulation context.
+        forcefield.createSystem(topology, nonbondedMethod=NoCutoff)
+        logging.info("All residues matched by CHARMM templates and patches.")
+        return
     ignored_residues = ignored_residues or set()
     unmatched = [
         residue
@@ -1965,11 +2074,14 @@ def prepare_glycoprotein_modeller(
 def run_prepare(args: argparse.Namespace) -> None:
     logging.info("--- STAGE 1: SYSTEM PREPARATION ---")
 
-    forcefield_files = ["amber14/protein.ff14SB.xml"]
+    configure_protein_force_field(args)
+    forcefield_files = [args.protein_ff]
+    logging.info(f"Protein force field: {args.protein_ff}")
 
     if args.membrane:
         logging.info("Membrane mode enabled: adding lipid force field.")
-        forcefield_files.append(args.lipid_ff)
+        if args.lipid_ff not in forcefield_files:
+            forcefield_files.append(args.lipid_ff)
 
     forcefield_files.append(args.water_ff)
 
@@ -2054,6 +2166,13 @@ def run_prepare(args: argparse.Namespace) -> None:
         logging.info("Ligand added to the system.")
 
     check_unmatched_residues(forcefield, modeller.topology, args, ignored_residues=ligand_residues_to_ignore)
+
+    # Solvation and membrane construction create a new periodic box.  Do not
+    # inherit placeholder CRYST1 records (PyMOL commonly writes a 1 A cube),
+    # since Modeller.addMembrane() otherwise uses that invalid box and its
+    # packing relaxation can immediately produce NaN coordinates.
+    if discard_input_periodic_box(modeller.topology):
+        logging.info("Discarding input periodic box before constructing the solvated system.")
 
     if args.membrane:
         membrane_center_z = choose_membrane_center_z(modeller, args)
@@ -2216,7 +2335,6 @@ def run_production(args: argparse.Namespace) -> None:
     equil_state_path = os.path.join(args.output_dir, "equilibrated.xml")
 
     checkpoint_path = os.path.join(args.output_dir, "production.chk")
-    final_checkpoint_path = os.path.join(args.output_dir, "production_final.chk")
 
     if not all(os.path.exists(p) for p in [equil_system_path, equil_pdb_path]):
         logging.error("Cannot find equilibrated files. Please run --prepare and --equilibrate first.")
@@ -2235,7 +2353,17 @@ def run_production(args: argparse.Namespace) -> None:
     simulation = Simulation(topology, system, integrator, platform)
 
     if args.restart:
-        restart_candidates = [p for p in [final_checkpoint_path, checkpoint_path] if os.path.exists(p)]
+        restart_candidates = [
+            *Path(args.output_dir).glob("production_final_*.chk"),
+            *(
+                Path(path)
+                for path in (
+                    os.path.join(args.output_dir, "production_final.chk"),
+                    checkpoint_path,
+                )
+                if os.path.exists(path)
+            ),
+        ]
 
         if restart_candidates:
             latest_checkpoint = max(restart_candidates, key=os.path.getmtime)
@@ -2253,16 +2381,26 @@ def run_production(args: argparse.Namespace) -> None:
         logging.info(f"Loading state from {equil_state_path}")
         simulation.loadState(equil_state_path)
 
-    dcd_path = os.path.join(args.output_dir, "production.dcd")
-    log_path = os.path.join(args.output_dir, "production.csv")
+    segment = next_production_segment(args.output_dir)
+    dcd_path = os.path.join(args.output_dir, f"production_{segment:03d}.dcd")
+    log_path = os.path.join(args.output_dir, f"production_{segment:03d}.csv")
+    final_checkpoint_path = os.path.join(
+        args.output_dir,
+        f"production_final_{segment:03d}.chk",
+    )
+    logging.info(
+        "Writing production segment %03d to %s and %s",
+        segment,
+        dcd_path,
+        log_path,
+    )
 
     dt_ps = integrator.getStepSize().value_in_unit(picoseconds)
     report_interval_ps = 50
     report_interval = int(report_interval_ps / dt_ps)
     production_steps = int(args.prod_ns * 1000 / dt_ps)
 
-    checkpoint_interval_ps = 100000.0
-    checkpoint_interval = int(checkpoint_interval_ps / dt_ps)
+    checkpoint_interval = max(1, int(args.checkpoint_interval_ps / dt_ps))
 
     total_steps_for_reporter = simulation.currentStep + production_steps
 
@@ -2295,14 +2433,34 @@ def run_production(args: argparse.Namespace) -> None:
     logging.info("--- PRODUCTION STAGE COMPLETE ---")
 
 
-def main() -> None:
+def next_production_segment(output_dir: str | Path) -> int:
+    """Return the next unused numbered production trajectory segment."""
+    patterns = (
+        re.compile(r"^production_(\d+)\.(?:dcd|csv)$"),
+        re.compile(r"^production_final_(\d+)\.chk$"),
+    )
+    segments = []
+    for path in Path(output_dir).glob("production_*.*"):
+        for pattern in patterns:
+            match = pattern.match(path.name)
+            if match:
+                segments.append(int(match.group(1)))
+                break
+    return max(segments, default=-1) + 1
+
+
+def parse_arguments(
+    argv: list[str] | None = None,
+    stage_override: str | None = None,
+) -> argparse.Namespace:
+    """Parse CLI/config arguments without executing a pipeline stage."""
     conf_parser = argparse.ArgumentParser(
         description="A unified pipeline for OpenMM simulations.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         add_help=False,
     )
     conf_parser.add_argument("-c", "--config", help="Path to JSON config file.", metavar="FILE")
-    args, remaining_argv = conf_parser.parse_known_args()
+    args, remaining_argv = conf_parser.parse_known_args(argv)
 
     defaults = {}
     config_dir = None
@@ -2342,6 +2500,13 @@ def main() -> None:
     parser.add_argument("--prod_ns", type=float, default=1.0, help="Length of production run in nanoseconds.")
 
     parser.add_argument(
+        "--checkpoint_interval_ps",
+        type=float,
+        default=1000.0,
+        help="Interval between rolling production checkpoints in picoseconds.",
+    )
+
+    parser.add_argument(
         "--lig_ff",
         type=str,
         choices=["espaloma", "smirnoff"],
@@ -2365,6 +2530,13 @@ def main() -> None:
     )
 
     parser.add_argument(
+        "--protein_ff",
+        choices=PROTEIN_FORCE_FIELDS,
+        default="amber14/protein.ff14SB.xml",
+        help="OpenMM protein force field. GLYCAM requires ff14SB or ff19SB; CHARMM supports protein-only and membrane preparation.",
+    )
+
+    parser.add_argument(
         "--water_model",
         default="tip3p",
         help="Water box model name passed to Modeller.addSolvent. Keep tip3p when using amber14/tip3pfb.xml.",
@@ -2372,8 +2544,8 @@ def main() -> None:
 
     parser.add_argument(
         "--water_ff",
-        default="amber14/tip3pfb.xml",
-        help="OpenMM water force-field XML file.",
+        default=None,
+        help="OpenMM water XML. Defaults to Amber14/19 TIP3P-FB, legacy Amber standalone TIP3P, or the selected CHARMM family water.xml.",
     )
 
     parser.add_argument(
@@ -2416,8 +2588,8 @@ def main() -> None:
 
     parser.add_argument(
         "--lipid_ff",
-        default="amber14/lipid17.xml",
-        help="OpenMM lipid force-field XML file used when --membrane is enabled.",
+        default=None,
+        help="Membrane lipid XML. Defaults to Amber lipid17 or bundled CHARMM parameters.",
     )
 
     parser.add_argument(
@@ -2571,7 +2743,27 @@ def main() -> None:
 
     parser.set_defaults(**defaults)
     args = parser.parse_args(remaining_argv)
+    # The lightweight config parser consumes this option before the full parser
+    # runs. Preserve it for logging and callers inspecting the namespace.
+    args.config = conf_parser.parse_known_args(argv)[0].config
+    try:
+        configure_protein_force_field(args)
+    except ValueError as error:
+        parser.error(str(error))
     resolve_config_paths(args, config_dir)
+
+    if stage_override is not None:
+        if stage_override not in {"prepare", "equilibrate", "produce"}:
+            raise ValueError(f"Unknown pipeline stage: {stage_override}")
+        args.prepare = stage_override == "prepare"
+        args.equilibrate = stage_override == "equilibrate"
+        args.produce = stage_override == "produce"
+
+    return args
+
+
+def execute_pipeline(args: argparse.Namespace) -> None:
+    """Validate and execute stages represented by an argument namespace."""
 
     if not args.output_dir:
         print("ERROR: The --output_dir argument is required.")
@@ -2597,11 +2789,12 @@ def main() -> None:
         logging.error("No action requested. Please specify at least one stage: --prepare, --equilibrate, or --produce.")
         sys.exit(1)
 
-    if not args.receptor:
+    if args.prepare and not args.receptor:
         logging.error("The --receptor argument is required.")
         sys.exit(1)
 
-    validate_input_files(args)
+    if args.prepare:
+        validate_input_files(args)
 
     if args.prepare:
         run_prepare(args)
@@ -2613,6 +2806,11 @@ def main() -> None:
         run_production(args)
 
     logging.info("All defined steps completed.")
+
+
+def main(argv: list[str] | None = None) -> None:
+    """Backward-compatible command-line entry point."""
+    execute_pipeline(parse_arguments(argv))
 
 
 if __name__ == "__main__":

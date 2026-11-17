@@ -4,7 +4,7 @@
 
 # mojoeMD
 
-`mojoeMD` is a JSON-driven molecular dynamics workflow for OpenMM. It prepares solvated systems, equilibrates them, runs production MD, and includes companion tools for trajectory analysis, contact analysis, interaction-energy screening, and noncanonical amino acid (NCAA) residue-template generation.
+`mojoeMD` is an installable, JSON-driven molecular dynamics workflow for OpenMM. It prepares solvated systems, equilibrates them, runs production MD, and includes companion tools for trajectory analysis, contact analysis, interaction-energy screening, and noncanonical amino acid (NCAA) residue-template generation. The workflow can be used through the `mojoemd` command or imported as a Python library.
 
 The project is aimed at protein systems that may include:
 
@@ -18,7 +18,10 @@ The project is aimed at protein systems that may include:
 ## Repository Layout
 
 ```text
-mojoeMD.py                                      Main OpenMM prepare/equilibrate/production pipeline
+mojoemd/                                        Modular simulation engine, analysis, CLI, and Python API
+mojoeMD.py                                      Independent original engine and legacy CLI
+pyproject.toml                                  Python package metadata and console entry point
+environment.yml                                Reproducible Conda environment
 analysis/analyse_MD.py                         Trajectory post-processing and structural analyses
 analysis/contact_analysis.py                   getcontacts wrapper, contact mapping, optional energies/plots
 ncaa/generate_ncaa_ffxml_from_amber_mol2.py    NCAA ffxml/hydrogen-definition generator
@@ -30,7 +33,7 @@ examples/ncaa_work/                            Example NCAA intermediate files
 
 ## What The Main Pipeline Does
 
-`mojoeMD.py` has three stages:
+The main pipeline has three stages:
 
 1. `prepare`
    - Loads a receptor PDB with PDBFixer.
@@ -53,53 +56,252 @@ examples/ncaa_work/                            Example NCAA intermediate files
 3. `produce`
    - Loads the equilibrated system/state.
    - Runs production MD.
-   - Writes `production.dcd`, `production.csv`, `production.chk`, and `production_final.chk`.
-   - Supports restart from the newest production checkpoint with `--restart`.
+   - Writes numbered trajectory/report segments such as `production_000.dcd` and `production_000.csv`.
+   - Keeps a rolling `production.chk` and a numbered final checkpoint for every segment.
+   - Supports restart from the newest production checkpoint with `--restart` without overwriting earlier trajectories.
 
 ## Installation
 
-Create an environment with the scientific MD stack used by the scripts. Exact package names vary by platform, but a typical Conda setup is:
+From the repository root, create the complete environment and install mojoeMD in editable mode:
 
 ```bash
-conda create -n mojoemd -c conda-forge python=3.11 openmm pdbfixer mdtraj numpy scipy scikit-learn tqdm pandas matplotlib
-conda activate mojoemd
+mamba env create -f environment.yml
+conda activate mojoeMD
 ```
 
-For ligand support, also install OpenFF/RDKit/OpenMM force-field generators:
+The environment includes the OpenMM stack, AmberTools, ligand dependencies,
+Espaloma 0.4.0, analysis dependencies, Packmol 21.2.3, and the local package. Confirm the
+installation with:
 
 ```bash
-conda install -c conda-forge openff-toolkit rdkit openmmforcefields
+mojoemd --help
+python -c "import mojoemd; print(mojoemd.__version__)"
+packmol < /dev/null 2>&1 | head -n 5
+```
+
+To update an existing environment after changing `environment.yml`:
+
+```bash
+mamba env update -n mojoeMD -f environment.yml --prune
+conda activate mojoeMD
+python -m pip install --no-deps -e .
+```
+
+Because this is an editable installation, ordinary Python source changes are
+available immediately. Reinstall only when `pyproject.toml`, package entry
+points, or dependencies change:
+
+```bash
+conda activate mojoeMD
+cd /path/to/mojoeMD
+python -m pip install --no-deps --editable .
+hash -r
+mojoemd doctor
+```
+
+If dependencies in `environment.yml` changed, update the environment first:
+
+```bash
+mamba env update -n mojoeMD -f environment.yml --prune
+conda activate mojoeMD
+python -m pip install --no-deps --editable .
 ```
 
 For contact analysis, install `getcontacts` separately and either put its commands on `PATH` or set `getcontacts.path` in `analysis/contact.json`.
 
-## Quick Start
+### Apple Silicon Espaloma
 
-Run a complete standard protein workflow:
+The DGL/PyTorch conda pins in `environment.yml` do not solve for native Apple
+Silicon Python 3.11. For an existing `mojoeMD` environment with the OpenMM,
+OpenFF and AmberTools dependencies installed, use the native-wheel repair overlay:
 
 ```bash
-python mojoeMD.py -c examples/01_vanilla_protein.json
+conda activate mojoeMD
+python -m pip install -r requirements-macos-espaloma.txt
+python -m pip check
+mojoemd doctor
+python tests/ligand_parity.py
 ```
+
+This uses the official Espaloma 0.4.0 source release, DGL 1.1.3, PyTorch 2.0.1,
+and NumPy 1.26.4. It also pins compatible MDTraj/JAX versions. If pip reports
+`uninstall-no-record-file` for conda-managed JAX, replace those two packages first:
+
+```bash
+conda remove -n mojoeMD --force jax jaxlib
+python -m pip install -r requirements-macos-espaloma.txt
+```
+
+Keep the environment activated: OpenFF locates `antechamber` and `sqm` through
+`PATH`. The ligand parity check performs real parameterization with both methods;
+`doctor` checks imports and backend availability. Espaloma needs a cached model in
+`~/.espaloma/` or network access to download a supported model on first use.
+The PyTorch 2.0.1 arm64 wheel contains an incorrect x86_64 tag in its internal
+`WHEEL` metadata: `pip check` can report "torch 2.0.1 is not supported on this
+platform". On this Mac its actual libraries are arm64; the DGL sparse check and
+real ligand parameterization pass. This metadata message is distinct from a
+dependency-version conflict. The selected cached model here is Espaloma 0.3.2;
+the Espaloma Python package version is 0.4.0.
+
+## Quick Start
+
+For a standard soluble protein preparation, no JSON file is required:
+
+```bash
+mojoemd prepare --pdb TEST.pdb
+```
+
+This uses the documented defaults and writes beside the input PDB to
+`TEST_mojoemd/`. Choose another location with `--output-dir`. Common direct
+options include:
+
+```bash
+mojoemd prepare --pdb TEST.pdb --output-dir prepared_TEST --ph 7.0
+mojoemd prepare --pdb TEST.pdb --ligand LIGAND.sdf
+mojoemd prepare --pdb TEST.pdb --membrane
+mojoemd run --pdb TEST.pdb
+```
+
+`mojoemd run --pdb TEST.pdb` runs preparation, equilibration, and production
+with standard settings. JSON remains preferable for production work because it
+records every non-default choice, and is required for detailed NCAA,
+glycoprotein, metal-site, and membrane configurations.
+
+Run the stages enabled in a configuration:
+
+```bash
+mojoemd run -c examples/01_vanilla_protein.json
+```
+
+After supplying real inputs and matching NCAA parameters in all templates, run
+all numbered examples from the CLI:
+
+```bash
+mojoemd doctor
+for config in examples/[0-9][0-9]_*.json; do
+    mojoemd run -c "$config" || break
+done
+```
+
+`run` follows each config's stage flags; most templates request 100 ns production.
+For preparation only, use `mojoemd prepare -c "$config"` in the loop instead.
+The fixture-based test command above resolves inputs automatically and forces
+preparation only.
+
+Continue later stages without a JSON file by pointing to the existing run
+directory:
+
+```bash
+mojoemd equilibrate --output-dir TEST_mojoemd
+mojoemd produce --output-dir TEST_mojoemd
+mojoemd produce --output-dir TEST_mojoemd --restart
+```
+
+Check the environment, Python modules, external programs, and available OpenMM
+platforms at any time:
+
+```bash
+mojoemd doctor
+```
+
+The command is `mojoemd doctor`. It diagnoses the installation; it does not run
+simulations or execute the examples. The numbered JSON files are templates and
+need receptor/ligand paths and, where applicable, matching NCAA identities and
+parameters. Paths in each JSON are relative to that JSON file.
+
+From the repository root, check every example profile using the committed small
+software fixtures (preparation only):
+
+```bash
+python tests/example_preparation.py --inputs fixtures --output dev/example-check-new --jobs 2
+```
+
+Choose a new output directory each time. This explicitly substitutes small
+peptides, synthetic ethanol, AIB parameters, and a synthetic copper site; it does
+not validate biological membrane placement or production dynamics. Exact input
+substitutions and hashes are saved in the output manifest. See
+[the testing guide](tests/README.md#numbered-example-preparation-checks) for the
+original large-input runs and [Mac installation](#apple-silicon-espaloma) for the
+Espaloma compatibility stack.
 
 Run only preparation:
 
 ```bash
-python mojoeMD.py -c examples/01_vanilla_protein.json --prepare
+mojoemd prepare -c examples/01_vanilla_protein.json
 ```
 
 Run production from an existing equilibrated state:
 
 ```bash
-python mojoeMD.py -c examples/01_vanilla_protein.json --produce
+mojoemd produce -c examples/01_vanilla_protein.json
 ```
 
 Restart production from the latest checkpoint:
 
 ```bash
-python mojoeMD.py -c examples/01_vanilla_protein.json --produce --restart
+mojoemd produce -c examples/01_vanilla_protein.json --restart
 ```
 
-Configuration values from JSON become command-line defaults. Any explicit CLI argument overrides the config value.
+One batch job can run the complete configured workflow; the stages do not need
+separate `sbatch` submissions:
+
+```bash
+#!/bin/bash
+#SBATCH --job-name=mojoemd
+#SBATCH --gres=gpu:1
+#SBATCH --time=24:00:00
+
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate mojoeMD
+mojoemd run -c /absolute/path/to/system.json
+```
+
+Set `prepare`, `equilibrate`, and `produce` to `true` in that JSON to run all
+three sequentially. Separate jobs are useful only when the cluster time limit
+or queue policy makes stage-level dependencies preferable.
+
+Every production invocation receives the next free number. A first run writes
+`production_000.dcd`, `production_000.csv`, and
+`production_final_000.chk`; a restart writes the corresponding `_001` files,
+and so on. Existing segments are never copied or overwritten. The rolling
+`production.chk` is deliberately replaced at each checkpoint, while completed
+numbered checkpoints are retained. Restart selection includes both the new
+numbered checkpoints and legacy `production_final.chk` files.
+
+The first `--` separates the installed command's arguments from advanced
+engine overrides. For example, `mojoemd prepare -c run.json -- --ph 6.5`
+overrides the configured pH. JSON values remain the defaults.
+
+Paths in JSON—including `receptor`, `ligand`, `ncaa_ffxml`, and `output_dir`—are
+resolved relative to the JSON file, not the shell's working directory. Absolute
+paths remain unchanged.
+
+The historical invocation remains available during the refactor:
+
+```bash
+python mojoeMD.py -c examples/01_vanilla_protein.json
+```
+
+## Python API
+
+The same workflow can be called from another module without constructing a
+subprocess:
+
+```python
+from mojoemd import prepare_system, run_pipeline
+
+prepared = prepare_system("configs/system.json")
+print(prepared.prepared_pdb, prepared.system_xml)
+
+# Alternatively, honor prepare/equilibrate/produce flags in the JSON file.
+result = run_pipeline("configs/system.json")
+print(result.output_dir)
+```
+
+Stage-specific functions are `prepare_system()`, `equilibrate_system()`, and
+`run_production()`. Each returns a `PipelineResult` containing the output
+directory and available primary files. Validation failures raise
+`PipelineExecutionError` instead of terminating the host Python process.
 
 ## Example Simulation Config
 
@@ -126,6 +328,7 @@ Common fields:
 - `output_dir`: run directory.
 - `prepare`, `equilibrate`, `produce`: stage toggles.
 - `prod_ns`: production length in nanoseconds.
+- `checkpoint_interval_ps`: rolling checkpoint interval in picoseconds; defaults to 1000 ps.
 - `timestep_fs`: integrator timestep.
 - `hydrogen_mass`: hydrogen mass for H-mass repartitioning.
 - `ph`: pH used during hydrogen addition.
@@ -212,7 +415,102 @@ selected `lipid_type`. For mixed or asymmetric membrane compositions, build the
 membrane externally and then use mojoeMD with force-field files that support the
 lipid residue names in that prepared structure.
 
+## Protein force fields
+
+Choose OpenMM's bundled protein parameters through `--protein_ff` or the JSON
+`protein_ff` key. The default remains `amber14/protein.ff14SB.xml`.
+
+```json
+{
+  "protein_ff": "amber19/protein.ff19SB.xml"
+}
+```
+
+Supported choices:
+
+- Amber14: `amber14/protein.ff14SB.xml`, `amber14/protein.ff15ipq.xml`
+- Amber19: `amber19/protein.ff19SB.xml`
+- Older Amber: `amber96.xml`, `amber99sb.xml`, `amber99sbildn.xml`,
+  `amber99sbnmr.xml`, `amber03.xml`, `amber10.xml`, `amberfb15.xml`
+- CHARMM: `charmm36.xml`, `charmm36_2024.xml` (includes CHARMM36m protein parameters)
+
+Availability depends on the installed OpenMM version; preparation checks that
+selected XML files exist. Polarizable force fields are not supported by this pipeline.
+`ff19ipq` is no longer offered: upstream removed this unpublished/incomplete
+parameter set ([release notes](https://github.com/openmm/openmmforcefields/releases/tag/0.15.1)).
+
+Amber14/Amber19 component models default to `amber14/tip3pfb.xml` water.
+Legacy Amber models default to standalone `tip3p.xml`, since their protein XML
+already includes ions; Amber14/Amber19 water XML would duplicate ion templates
+and is rejected for those models. Amber models default to `amber14/lipid17.xml` lipids.
+CHARMM defaults to its matching `charmm36/water.xml` or
+`charmm36_2024/water.xml`; its lipid parameters are bundled in the main XML.
+Explicit `water_ff` and `lipid_ff` settings override these defaults, with family
+checks for CHARMM. Select water parameters appropriate to your protein model;
+loading successfully does not validate the scientific suitability of a combination.
+
+For GLYCAM compatibility limits and validation scope, see
+[Glycoproteins](#glycoproteins). CHARMM also rejects the current ligand and NCAA modules, which use
+Amber-compatible parameters. Custom NCAA parameters must be appropriate for
+the selected protein model. CHARMM protein-only and membrane runs are supported;
+patched termini may require hydrogens already present in the input.
+
+See the [OpenMM force-field documentation](https://docs.openmm.org/latest/userguide/application/02_running_sims.html#force-fields)
+for parameter sets, water models, and CHARMM input requirements.
+
+Run the [preparation integration tests](tests/README.md) to check supported
+force fields and module combinations without running equilibration or production.
+
+### Validated module combinations
+
+All rows include a solvated protein. “Tested” means real preparation, system
+serialization, retained-chemistry checks, and finite initial energy/forces passed
+in the [2026-10-01 validation](tests/validation_2026-10-01.md).
+
+| Protein selection | Protein only | Ligand | Membrane | Membrane + ligand | GLYCAM and NCAA combinations |
+| --- | --- | --- | --- | --- | --- |
+| ff14SB, ff19SB | Tested | Tested, both ligand methods | Tested | Tested, both ligand methods | All 16 on/off combinations of glycan, membrane, ligand and NCAA tested; NCAA uses the supplied AIB parameters |
+| ff15ipq | Tested | Tested, both ligand methods | Tested | Tested, both ligand methods | GLYCAM blocked; NCAA requires compatible custom parameters and is not covered by this matrix |
+| Legacy Amber: amber96, amber99sb, amber99sbildn, amber99sbnmr, amber03, amber10, amberfb15 | Tested | Tested, both ligand methods | Tested | Tested, both ligand methods | GLYCAM blocked; NCAA requires compatible custom parameters and is not covered by this matrix |
+| CHARMM36, CHARMM36 2024 | Tested | Blocked | Tested | Blocked | GLYCAM and NCAA blocked |
+
+Both ligand methods means `lig_ff: "smirnoff"` and `lig_ff: "espaloma"`.
+The membrane matrix uses POPC. These results do not cover every lipid, water
+model, glycan chemistry or NCAA parameter set, or establish dynamics stability.
+The consolidated run passed 112 real preparations and 15 expected configuration
+rejections; the original malformed copper-site ligand remains rejected, and the
+positive copper-site tests use a valid replacement test ligand.
+
+To switch force fields, set `protein_ff` to one of the XML paths above and rerun
+`mojoemd prepare -c system.json` in a new output directory. Omit `water_ff` and
+`lipid_ff` to use the matching defaults described above, or update explicit
+settings for the selected family. Changing `protein_ff` only for equilibration,
+production or restart does not replace the parameters: those stages load the
+previously serialized system. Prepare and equilibrate a new system before
+starting production with the new force field.
+
 ## Glycoproteins
+
+The current GLYCAM module supports these protein force-field selections:
+
+| Protein force field | GLYCAM compatibility in mojoeMD |
+| --- | --- |
+| `amber14/protein.ff14SB.xml` | Allowed; default. XML loading with GLYCAM tested. |
+| `amber19/protein.ff19SB.xml` | Allowed. XML loading with GLYCAM tested. |
+| `amber14/protein.ff15ipq.xml` | Blocked: the GLYCAM XML references protein atom types absent from IPQ. |
+| `charmm36.xml`, `charmm36_2024.xml` | Blocked: CHARMM uses different residue templates and nonbonded 1-4 scaling from the current GLYCAM module. |
+| Legacy Amber selections | Blocked: unsupported by the current GLYCAM preparation path. |
+
+Unsupported combinations produce a clear error before preparation starts.
+These checks prevent incompatible combinations from running; they do not add
+IPQ or CHARMM glycosylation support. Supporting those combinations would require
+compatible parameters and changes to the glycosylation module.
+
+GLYCAM retains its own glycosylated ASN (`NLN`) parameters when switching to
+ff19SB. The [preparation integration suite](tests/README.md) exercises real
+preparation for the allowed combinations. It does not run equilibration or
+production MD. OpenMM also documents
+[Amber19 with GLYCAM](https://docs.openmm.org/latest/userguide/application/02_running_sims.html#amber19).
 
 Set `glycoprotein: true` and provide GLYCAM resources:
 
@@ -233,7 +531,7 @@ The preparation code detects supported glycan links from PDB `LINK` records and/
 Useful glycoprotein debug flags:
 
 ```bash
-python mojoeMD.py -c examples/09_prepare_only_debug_glycoprotein.json
+mojoemd prepare -c examples/09_prepare_only_debug_glycoprotein.json
 ```
 
 Debug output includes a pre-hydrogen PDB and residue/template bond dumps.
@@ -372,8 +670,8 @@ validated parameter set.
 
 ### Required validation
 
-Do not consider XML generation alone a successful parameterization. Run the
-complete mojoeMD preparation stage and verify that:
+Do not consider XML generation alone a successful parameterization. Run
+`mojoemd prepare -c <config.json>` and verify that:
 
 1. The intended nonstandard residues were preserved and unwanted ones were
    removed or replaced explicitly.
@@ -395,11 +693,47 @@ before production or publication-quality simulations.
 
 ## Trajectory Analysis
 
-Run:
+Edit `topology_pdb` and `trajectory` in `analysis/analyse.json` to point to your
+simulation output, then run from the repository directory:
 
 ```bash
-python analysis/analyse_MD.py -c analysis/analyse.json
+python -m mojoemd analyse -c analysis/analyse.json
 ```
+
+The template selects `production_*.dcd` in the working directory and writes one
+combined `processed.dcd`. Its default `stride: 10` keeps every tenth frame across
+the complete sequence; set `stride: 1` to retain every frame.
+
+The modular analysis combines numbered `production_*.dcd` segments in numeric
+order before processing. Set `trajectory` to a production directory or glob,
+or omit it to discover segments beside `topology_pdb`. A numbered filename also
+selects its sibling production segments. An old `production.dcd` setting falls
+back to numbered segments when that legacy file does not exist; an existing
+legacy file remains a single-file input.
+
+```json
+{
+  "topology_pdb": "my_run/equilibrated.pdb",
+  "trajectory": "my_run/production_*.dcd",
+  "output_dir": "analysis_out",
+  "stride": 10,
+  "write_processed": true
+}
+```
+
+`analysis_out/processed.dcd` contains the combined frames after configured
+stripping, imaging, and alignment (`write_processed` defaults to true). All
+analyses use the combined sequence. Contact analysis can continue to use this
+single processed file. Use an explicit list of filenames to restrict/reorder
+segments; a one-item list analyses only that file. Stride is applied globally
+across segment boundaries. Frames are not automatically deduplicated.
+
+Paths remain relative to the working directory. DCD timestamps can reset at
+restart; set `time.dt_ps` to the effective frame spacing **after stride** for
+continuous CSV time axes. Absolute simulation times require the production
+reports. The independent legacy `analysis/analyse_MD.py` retains its original
+single-file loading behavior.
+
 
 The analysis pipeline can:
 
@@ -434,10 +768,13 @@ analysis_out/cluster_representatives/
 Run:
 
 ```bash
-python analysis/contact_analysis.py -c analysis/contact.json
+python -m mojoemd contacts -c analysis/contact.json
 ```
 
-`contact_analysis.py` can:
+The contact template uses `analysis_out/processed.dcd`, so running trajectory
+analysis first gives contact analysis the combined production sequence too.
+Keep its structure/topology path matched to `processed_topology.pdb` when atoms
+were stripped. The contact pipeline can:
 
 - Run `getcontacts` dynamically or statically.
 - Parse existing getcontacts TSV files.
@@ -468,7 +805,7 @@ The energy calculation is a lightweight Coulomb + Lennard-Jones screen. It is us
 
 - Input PDB quality matters. Missing atoms, ambiguous chain IDs, unsupported glycan linkages, or unmatched NCAA residues will stop preparation.
 - Metal sites need special care. Metal-aware protonation prevents hydrogens from being added to coordinating histidine nitrogens or cysteine sulfurs, but monatomic metal ions are still nonbonded particles unless `metal_coordination_restraints` or a dedicated metal-site model is used.
-- `mojoeMD.py` currently uses Amber14 protein and TIP3P-FB force-field XML files by default.
+- mojoeMD currently uses Amber14 protein and TIP3P-FB force-field XML files by default.
 - `water_model` is passed to OpenMM solvent building; keep it compatible with the loaded water XML.
 - Production reports DCD frames every 50 ps.
 - Production checkpointing is configured at a long interval; final checkpoint is always written at the end of a successful run.
@@ -479,7 +816,8 @@ The energy calculation is a lightweight Coulomb + Lennard-Jones screen. It is us
 Basic syntax check:
 
 ```bash
-python -m py_compile mojoeMD.py analysis/analyse_MD.py analysis/contact_analysis.py ncaa/generate_ncaa_ffxml_from_amber_mol2.py
+python -m unittest discover -s tests -v
+python -m py_compile mojoeMD.py mojoemd/*.py analysis/analyse_MD.py analysis/contact_analysis.py ncaa/generate_ncaa_ffxml_from_amber_mol2.py
 ```
 
 Most functional checks require installed MD dependencies and realistic molecular input files.
@@ -507,3 +845,31 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+
+## Modular engine migration
+
+The modular engine is the default for the installed `mojoemd` command,
+`python -m mojoemd`, and the Python API. Select the original implementation
+explicitly with `--backend legacy` or `backend="legacy"`. Explicit
+`--backend modular` remains supported.
+`mojoeMD.py` remains available as the independent fallback. The current full
+Espaloma behavior and environment are preserved.
+
+See [the migration record](REFACTOR.md) for module responsibilities, acceptance
+gates, and reproducible validation commands. Analysis is also available through
+`mojoemd analyse --config analysis.json` and
+`mojoemd contacts --config contacts.json`.
+
+The [2026-11-06 example validation](tests/validation_2026-11-06_examples.md)
+records preparation checks for all 11 example templates with documented local
+input substitutions. Outputs and logs are under `dev/modular_prep_check/`.
+
+```bash
+python -m mojoemd run --config run.json                   # modular default
+python -m mojoemd run --config run.json --backend legacy  # original engine
+```
+
+Example input paths and NCAA names are placeholders; supply real inputs or use
+the effective configs retained in the validation directory. The original engine
+still has the checkpoint filename bug described in the migration record.
