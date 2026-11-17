@@ -282,6 +282,26 @@ The historical invocation remains available during the refactor:
 python mojoeMD.py -c examples/01_vanilla_protein.json
 ```
 
+## Optional NVIDIA cuPotential acceleration
+
+On a compatible Linux NVIDIA GPU cluster, the modular engine can opt into
+cuPotential for **production** dynamics:
+
+```bash
+mojoemd doctor --acceleration cupotential
+mojoemd run -c my_system.json --acceleration cupotential
+mojoemd produce -c my_system.json --acceleration cupotential --restart
+```
+
+Or set `"acceleration": "cupotential"` in JSON; the default is `"openmm"`.
+Preparation/equilibration remain standard OpenMM. Use a separate cluster
+environment: this adapter targets NVIDIA plugin 0.3.5 and OpenMM 8.4.x, and the
+published artifacts have specific CUDA/Python/Linux requirements. Binary
+production checkpoints cannot switch between stock and accelerated integrators.
+GPU accuracy, performance and restart validation are still required on the cluster.
+See [installation, compatibility and GPU validation](docs/cupotential.md) and
+[the example configuration](examples/cupotential_protein.json).
+
 ## Python API
 
 The same workflow can be called from another module without constructing a

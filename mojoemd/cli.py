@@ -30,6 +30,8 @@ def build_parser() -> argparse.ArgumentParser:
         command.add_argument("--ligand", help="Optional ligand SDF")
         command.add_argument("--membrane", action="store_true", help="Build the standard POPC membrane system")
         command.add_argument("--ph", type=float, help="Preparation pH")
+        command.add_argument("--acceleration", choices=("openmm", "cupotential"),
+                             help="Production acceleration (default from config, otherwise openmm)")
         command.add_argument("--backend", choices=("modular", "legacy"), default=DEFAULT_BACKEND,
                              help="Execution engine (default: modular); legacy selects the original implementation")
         if name == "produce":
@@ -43,7 +45,9 @@ def build_parser() -> argparse.ArgumentParser:
             nargs=argparse.REMAINDER,
             help="Compatibility overrides passed after '--', for example: -- --ph 6.5",
         )
-    subparsers.add_parser("doctor", help="Check the mojoeMD installation and external tools.")
+    doctor = subparsers.add_parser("doctor", help="Check the mojoeMD installation and external tools.")
+    doctor.add_argument("--acceleration", choices=("openmm", "cupotential"), default="openmm",
+                        help="Also exercise the optional cuPotential CUDA backend")
     for name in ("analyse", "contacts"):
         command = subparsers.add_parser(name, help=f"Run {name} with an analysis JSON configuration")
         command.add_argument("-c", "--config", required=True)
@@ -56,7 +60,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.command == "doctor":
-        return 0 if run_doctor() else 1
+        return 0 if run_doctor(acceleration=args.acceleration) else 1
     if args.command in {"analyse", "contacts"}:
         from importlib import import_module
         analysis = import_module(f"mojoemd.{args.command}")
@@ -90,6 +94,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         overrides.append("--membrane")
     if args.ph is not None:
         overrides.extend(("--ph", str(args.ph)))
+    if args.acceleration is not None:
+        if args.backend == "legacy":
+            parser.error("--acceleration requires --backend modular")
+        overrides.extend(("--acceleration", args.acceleration))
 
     try:
         result = run_pipeline(args.config, stages=stages, cli_overrides=overrides, backend=args.backend)

@@ -14,10 +14,12 @@ from openmm.app import CheckpointReporter, DCDReporter, PDBFile, Simulation, Sta
 from openmm.unit import femtoseconds, kelvin, picosecond, picoseconds
 
 from mojoemd.runtime import LoggingReporter, select_platform
+from mojoemd.acceleration import cupotential_dynamics, production_backend, write_production_backend
 
 
 def run_production(args: argparse.Namespace) -> None:
     logging.info("--- STAGE 3: PRODUCTION MD ---")
+    backend_record = production_backend(args)
 
     equil_system_path = os.path.join(args.output_dir, "equilibrated_system.xml")
     equil_pdb_path = os.path.join(args.output_dir, "equilibrated.pdb")
@@ -37,8 +39,11 @@ def run_production(args: argparse.Namespace) -> None:
     with open(equil_system_path, "r") as f:
         system = XmlSerializer.deserialize(f.read())
 
-    platform = select_platform()
-    integrator = LangevinMiddleIntegrator(300 * kelvin, 1 / picosecond, args.timestep_fs * femtoseconds)
+    if getattr(args, "acceleration", "openmm") == "cupotential":
+        system, integrator, platform = cupotential_dynamics(system, args.timestep_fs)
+    else:
+        platform = select_platform()
+        integrator = LangevinMiddleIntegrator(300 * kelvin, 1 / picosecond, args.timestep_fs * femtoseconds)
     simulation = Simulation(topology, system, integrator, platform)
 
     if args.restart:
@@ -70,6 +75,7 @@ def run_production(args: argparse.Namespace) -> None:
         logging.info(f"Loading state from {equil_state_path}")
         simulation.loadState(equil_state_path)
 
+    write_production_backend(args, backend_record)
     segment = next_production_segment(args.output_dir)
     dcd_path = os.path.join(args.output_dir, f"production_{segment:03d}.dcd")
     log_path = os.path.join(args.output_dir, f"production_{segment:03d}.csv")

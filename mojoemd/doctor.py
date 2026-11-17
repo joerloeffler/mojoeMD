@@ -42,7 +42,7 @@ def _distribution_version(module: str) -> str:
         return "installed"
 
 
-def run_doctor() -> bool:
+def run_doctor(*, acceleration: str = "openmm") -> bool:
     """Print dependency diagnostics and return whether required checks pass."""
     print("mojoeMD doctor")
     print("---------------")
@@ -114,6 +114,14 @@ def run_doctor() -> bool:
     except Exception as exc:
         healthy = False
         print(f"[!!] OpenMM platforms: {exc}")
+
+    if acceleration == "cupotential":
+        try:
+            from .acceleration import check_cupotential
+            print(f"[OK] cuPotential: {check_cupotential()}")
+        except Exception as exc:
+            healthy = False
+            print(f"[!!] cuPotential: {exc}")
 
     print("Result: " + ("healthy" if healthy else "problems found"))
     return healthy

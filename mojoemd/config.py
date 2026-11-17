@@ -197,6 +197,10 @@ def parse_arguments(
     parser.add_argument("--prepare", action="store_true", help="Run the system preparation stage.")
     parser.add_argument("--equilibrate", action="store_true", help="Run the equilibration stage.")
     parser.add_argument("--produce", action="store_true", help="Run the production MD stage.")
+    parser.add_argument(
+        "--acceleration", choices=("openmm", "cupotential"), default="openmm",
+        help="Production dynamics implementation; cuPotential requires Linux x86-64/CUDA.",
+    )
 
     parser.add_argument(
         "--restart",
@@ -453,6 +457,8 @@ def parse_arguments(
     # The lightweight config parser consumes this option before the full parser
     # runs. Preserve it for logging and callers inspecting the namespace.
     args.config = conf_parser.parse_known_args(argv)[0].config
+    if args.acceleration not in ("openmm", "cupotential"):
+        parser.error("acceleration must be 'openmm' or 'cupotential'")
     try:
         configure_protein_force_field(args)
     except ValueError as error:

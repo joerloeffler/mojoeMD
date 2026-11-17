@@ -122,6 +122,21 @@ complete run, the issues it exposed and the targeted follow-up checks.
 
 ## Modular engine and complete workflow checks
 
+For the optional cuPotential adapter, `test_acceleration.py` exercises config/CLI
+selection, force/settings preservation, unavailable native libraries, unsupported
+systems and checkpoint-backend mismatches without requiring a GPU. The real CUDA
+test is opt-in and fails on missing/incompatible hardware rather than silently
+passing when explicitly requested:
+
+```bash
+MOJOEMD_CUPOTENTIAL_INTEGRATION=1 python -m unittest discover -s tests -p test_cupotential_integration.py -v
+python tests/workflow_regression.py --backend modular --acceleration cupotential --output dev/cupotential-workflow-new
+```
+
+The first test checks water force/energy agreement, plugin XML serialization and
+fresh-Context NPT checkpoint continuation. The workflow uses CPU equilibration and
+cuPotential CUDA production/restart. See [cluster requirements and limits](../docs/cupotential.md).
+
 Set `MOJOEMD_TEST_BACKEND=modular` to run the preparation runner against the
 independent extracted engine. The runner now defaults to `modular`; set
 `MOJOEMD_TEST_BACKEND=legacy` to check the original implementation.

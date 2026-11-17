@@ -12,6 +12,33 @@ from mojoemd.cli import main
 ROOT = Path(__file__).resolve().parents[1]
 
 
+class StockPath(ast.NodeTransformer):
+    """Remove only the documented opt-in production/config additions for parity."""
+    def visit_If(self, node):
+        if ast.unparse(node.test) == "getattr(args, 'acceleration', 'openmm') == 'cupotential'":
+            return [self.visit(child) for child in node.orelse]
+        if ast.unparse(node.test) == "args.acceleration not in ('openmm', 'cupotential')":
+            return None
+        return self.generic_visit(node)
+
+    def visit_Expr(self, node):
+        if isinstance(node.value, ast.Call):
+            call = node.value
+            if isinstance(call.func, ast.Name) and call.func.id == 'write_production_backend':
+                return None
+            if (isinstance(call.func, ast.Attribute) and call.func.attr == 'add_argument'
+                    and call.args and isinstance(call.args[0], ast.Constant)
+                    and call.args[0].value == '--acceleration'):
+                return None
+        return self.generic_visit(node)
+
+    def visit_Assign(self, node):
+        if (isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name)
+                and node.value.func.id == 'production_backend'):
+            return None
+        return self.generic_visit(node)
+
+
 class ModularParityTests(unittest.TestCase):
     def test_all_legacy_functions_and_constants_are_preserved(self):
         legacy = ast.parse((ROOT / 'mojoeMD.py').read_text())
@@ -45,7 +72,8 @@ class ModularParityTests(unittest.TestCase):
                                 and call.func.attr == 'loadCheckpoint'):
                             call.args[0] = ast.Call(func=ast.Name(id='str', ctx=ast.Load()),
                                                     args=[call.args[0]], keywords=[])
-                self.assertEqual(ast.dump(node), ast.dump(extracted[name]))
+                modular = StockPath().visit(copy.deepcopy(extracted[name]))
+                self.assertEqual(ast.dump(node), ast.dump(modular))
 
     def test_configuration_matches_legacy_for_every_protein_force_field(self):
         legacy = _load_engine()
@@ -53,7 +81,9 @@ class ModularParityTests(unittest.TestCase):
         for forcefield in legacy.PROTEIN_FORCE_FIELDS:
             with self.subTest(forcefield=forcefield):
                 argv = ['--protein_ff', forcefield, '--prepare', '--receptor', 'test.pdb']
-                self.assertEqual(vars(legacy.parse_arguments(argv)), vars(modular.parse_arguments(argv)))
+                parsed = vars(modular.parse_arguments(argv))
+                self.assertEqual(parsed.pop('acceleration'), 'openmm')
+                self.assertEqual(vars(legacy.parse_arguments(argv)), parsed)
 
     def test_modular_backend_does_not_load_legacy_engine(self):
         with patch('mojoemd.api._load_engine', side_effect=AssertionError('Legacy loaded')):

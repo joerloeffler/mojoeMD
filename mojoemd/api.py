@@ -9,6 +9,8 @@ from pathlib import Path
 import sys
 from typing import Any, Iterable, Sequence
 
+from .acceleration import AccelerationError
+
 
 VALID_STAGES = ("prepare", "equilibrate", "produce")
 DEFAULT_BACKEND = "modular"
@@ -109,7 +111,14 @@ def run_pipeline(
             for stage in VALID_STAGES:
                 setattr(args, stage, stage in requested)
         active = tuple(stage for stage in VALID_STAGES if getattr(args, stage))
+        if backend == "legacy" and getattr(args, "acceleration", "openmm") != "openmm":
+            raise AccelerationError("cuPotential acceleration requires the modular backend.")
+        if "produce" in active and getattr(args, "acceleration", "openmm") == "cupotential":
+            from .acceleration import load_cupotential
+            load_cupotential()
         engine.execute_pipeline(args)
+    except AccelerationError as exc:
+        raise PipelineExecutionError(str(exc)) from exc
     except SystemExit as exc:
         raise PipelineExecutionError(
             f"mojoeMD pipeline stopped with exit status {exc.code}"

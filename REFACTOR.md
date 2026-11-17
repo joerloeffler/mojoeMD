@@ -104,6 +104,12 @@ ignored `dev/`; tests and small fixtures are now visible to version control.
 
 ## Separate future work
 
+The `cupotential` branch adds opt-in production acceleration in `acceleration.py`.
+The legacy engine is unchanged. Source parity checks normalize only the explicit
+acceleration branch, backend-record calls and new config option; they still compare
+the complete stock production path and all preparation/equilibration code.
+See [the cuPotential guide](docs/cupotential.md) for the GPU validation still needed.
+
 November 17 maintenance intentionally removes `ff19ipq` from both engines'
 selectable models because upstream withdrew the incomplete parameter set. Both
 engines also guard the optional `openff` parent namespace before looking for its

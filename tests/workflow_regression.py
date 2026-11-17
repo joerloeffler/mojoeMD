@@ -1,7 +1,9 @@
-"""Real CPU prepare/equilibrate/produce/restart/analysis regression.
+"""Real prepare/equilibrate/produce/restart/analysis regression.
 
 Run each backend in a separate process. No protocol steps are shortened.
 The short 50 ps production segments test handoffs, not scientific convergence.
+Uses CPU by default; --acceleration cupotential selects CUDA production after
+the stock CPU equilibration schedule.
 """
 import argparse
 import hashlib
@@ -18,10 +20,13 @@ sys.path.insert(0, str(ROOT))
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--backend', choices=('legacy', 'modular'), required=True)
+    parser.add_argument('--acceleration', choices=('openmm', 'cupotential'), default='openmm')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--resume-after-production', action='store_true',
                         help='Validate an existing completed initial run, then test restart and analysis')
     args = parser.parse_args()
+    if args.acceleration == 'cupotential' and args.backend != 'modular':
+        parser.error('cuPotential requires the modular backend')
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=args.resume_after_production)
     for key in ('OMP_NUM_THREADS', 'OPENMM_CPU_THREADS', 'OPENBLAS_NUM_THREADS'):
@@ -38,10 +43,13 @@ def main():
 
     config = output / 'config.json'
     if not args.resume_after_production:
-        config.write_text(json.dumps({'receptor': str(ROOT / 'tests/fixtures/preparation/protein.pdb'),
+        settings = {'receptor': str(ROOT / 'tests/fixtures/preparation/protein.pdb'),
             'output_dir': str(output / 'simulation'), 'prepare': True, 'equilibrate': True,
             'produce': True, 'prod_ns': 0.05, 'timestep_fs': 2.0,
-            'checkpoint_interval_ps': 10.0}, indent=2) + '\n')
+            'checkpoint_interval_ps': 10.0}
+        if args.backend == 'modular':
+            settings['acceleration'] = args.acceleration
+        config.write_text(json.dumps(settings, indent=2) + '\n')
     else:
         assert (output / 'simulation/production_final_000.chk').exists(), 'Initial production incomplete'
         assert not (output / 'simulation/production_001.dcd').exists(), 'Restart already exists'
@@ -98,7 +106,8 @@ def main():
         legacy_analysis.main()
     for filename in ('rmsd.csv', 'rmsf_atoms.csv', 'rmsf_residues.csv', 'sasa_global.csv'):
         assert (output / 'analysis' / filename).read_bytes() == (output / 'legacy_analysis' / filename).read_bytes(), filename
-    record = {'backend': args.backend, 'status': 'passed', 'equilibration_steps': 130000,
+    record = {'backend': args.backend, 'acceleration': args.acceleration,
+        'status': 'passed', 'equilibration_steps': 130000,
         'production_ps_per_segment': 50, 'frames': [len(first), len(second)],
         'report_times_ps': times, 'analysis_parity': 'CSV byte equality on identical input',
         'legacy_sha256': hashlib.sha256((ROOT / 'mojoeMD.py').read_bytes()).hexdigest()}

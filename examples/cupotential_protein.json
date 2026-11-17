@@ -1,0 +1,14 @@
+{
+  "receptor": "inputs/protein.pdb",
+  "output_dir": "runs/cupotential_protein",
+  "prepare": true,
+  "equilibrate": true,
+  "produce": true,
+  "acceleration": "cupotential",
+  "protein_ff": "amber14/protein.ff14SB.xml",
+  "water_model": "tip3p",
+  "water_ff": "amber14/tip3pfb.xml",
+  "timestep_fs": 4.0,
+  "hydrogen_mass": 1.5,
+  "prod_ns": 100.0
+}
