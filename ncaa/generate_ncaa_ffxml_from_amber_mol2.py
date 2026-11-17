@@ -209,6 +209,25 @@ def infer_distance_bonds(residue):
     atoms = residue["atoms"]
     bonds = []
 
+    # A hydrogen has exactly one covalent parent.  Using the generic distance
+    # cutoff alone can attach it to two nearby heavy atoms (notably opposing
+    # methyl groups), producing an invalid fragment and incorrect AM1-BCC
+    # charges.  Assign each hydrogen only to its nearest plausible heavy atom.
+    hydrogen_parent = {}
+    heavy_atoms = [atom for atom in atoms if atom["element"] != "H"]
+    for hydrogen in (atom for atom in atoms if atom["element"] == "H"):
+        candidates = []
+        for heavy in heavy_atoms:
+            rh = COVALENT_RADII.get("H")
+            re = COVALENT_RADII.get(heavy["element"])
+            if rh is None or re is None:
+                continue
+            distance = pdb_distance(hydrogen, heavy)
+            if distance <= 1.25 * (rh + re):
+                candidates.append((distance, heavy))
+        if candidates:
+            hydrogen_parent[id(hydrogen)] = min(candidates, key=lambda item: item[0])[1]
+
     for i, a in enumerate(atoms):
         for b in atoms[i + 1:]:
             ea, eb = a["element"], b["element"]
@@ -222,6 +241,10 @@ def infer_distance_bonds(residue):
 
             d = pdb_distance(a, b)
             if d <= 1.25 * (ra + rb):
+                if ea == "H" and hydrogen_parent.get(id(a)) is not b:
+                    continue
+                if eb == "H" and hydrogen_parent.get(id(b)) is not a:
+                    continue
                 order = 2 if {a["name"], b["name"]} == {"C", "O"} else 1
                 bonds.append(
                     {

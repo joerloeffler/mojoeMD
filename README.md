@@ -264,6 +264,8 @@ Common fields:
 - `hydrogen_mass`: hydrogen mass for H-mass repartitioning.
 - `ph`: pH used during hydrogen addition.
 - `water_model`: solvent model passed to `Modeller.addSolvent`.
+- `protein_ff`: OpenMM protein force-field XML file (for example,
+  `amber19/protein.ff19SB.xml`).
 - `water_ff`: OpenMM water force-field XML file.
 - `membrane`: build a lipid membrane and water box with `Modeller.addMembrane`.
 - `lipid_type`: lipid type for OpenMM membrane building, for example `POPC`.

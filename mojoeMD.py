@@ -108,6 +108,7 @@ def resolve_config_paths(args: argparse.Namespace, config_dir: Path | None) -> N
         ]
 
     args.glycam_hydrogens = resolve_config_path(args.glycam_hydrogens, config_dir)
+    args.protein_ff = resolve_config_path(args.protein_ff, config_dir)
     args.water_ff = resolve_config_path(args.water_ff, config_dir)
     args.lipid_ff = resolve_config_path(args.lipid_ff, config_dir)
 
@@ -328,6 +329,7 @@ def validate_input_files(args: argparse.Namespace) -> None:
     if args.glycoprotein:
         ok = validate_openmm_app_data_file(args.glycam_hydrogens, "GLYCAM hydrogen definitions") and ok
 
+    ok = validate_openmm_app_data_file(args.protein_ff, "Protein force field") and ok
     ok = validate_openmm_app_data_file(args.water_ff, "Water force field") and ok
 
     if args.membrane:
@@ -1985,7 +1987,7 @@ def prepare_glycoprotein_modeller(
 def run_prepare(args: argparse.Namespace) -> None:
     logging.info("--- STAGE 1: SYSTEM PREPARATION ---")
 
-    forcefield_files = ["amber14/protein.ff14SB.xml"]
+    forcefield_files = [args.protein_ff]
 
     if args.membrane:
         logging.info("Membrane mode enabled: adding lipid force field.")
@@ -2094,10 +2096,23 @@ def run_prepare(args: argparse.Namespace) -> None:
             neutralize=True,
         )
     else:
+        # OpenMM's bundled pre-equilibrated solvent boxes predate the explicit
+        # OPC names.  OPC uses the four-site TIP4P-Ew box geometry, while OPC3
+        # uses the three-site TIP3P geometry; the selected water ffxml still
+        # supplies the actual model parameters and virtual-site definition.
+        solvent_box_model = {"opc": "tip4pew", "opc3": "tip3p"}.get(
+            args.water_model.lower(), args.water_model
+        )
+        if solvent_box_model != args.water_model:
+            logging.info(
+                "Using OpenMM %s solvent-box geometry for %s water.",
+                solvent_box_model,
+                args.water_model,
+            )
         logging.info("Adding solvent and ions...")
         modeller.addSolvent(
             forcefield,
-            model=args.water_model,
+            model=solvent_box_model,
             padding=args.solvent_padding * nanometer,
             positiveIon=args.positive_ion,
             negativeIon=args.negative_ion,
@@ -2428,6 +2443,12 @@ def parse_arguments(
         type=float,
         default=1.5,
         help="Mass for hydrogen atoms in amu. Use > 1.0 for H-mass repartitioning.",
+    )
+
+    parser.add_argument(
+        "--protein_ff",
+        default="amber14/protein.ff14SB.xml",
+        help="OpenMM protein force-field XML file.",
     )
 
     parser.add_argument(
