@@ -109,6 +109,40 @@ python -m pip install --no-deps --editable .
 
 For contact analysis, install `getcontacts` separately and either put its commands on `PATH` or set `getcontacts.path` in `analysis/contact.json`.
 
+### Apple Silicon Espaloma
+
+The DGL/PyTorch conda pins in `environment.yml` do not solve for native Apple
+Silicon Python 3.11. For an existing `mojoeMD` environment with the OpenMM,
+OpenFF and AmberTools dependencies installed, use the native-wheel repair overlay:
+
+```bash
+conda activate mojoeMD
+python -m pip install -r requirements-macos-espaloma.txt
+python -m pip check
+mojoemd doctor
+python tests/ligand_parity.py
+```
+
+This uses the official Espaloma 0.4.0 source release, DGL 1.1.3, PyTorch 2.0.1,
+and NumPy 1.26.4. It also pins compatible MDTraj/JAX versions. If pip reports
+`uninstall-no-record-file` for conda-managed JAX, replace those two packages first:
+
+```bash
+conda remove -n mojoeMD --force jax jaxlib
+python -m pip install -r requirements-macos-espaloma.txt
+```
+
+Keep the environment activated: OpenFF locates `antechamber` and `sqm` through
+`PATH`. The ligand parity check performs real parameterization with both methods;
+`doctor` checks imports and backend availability. Espaloma needs a cached model in
+`~/.espaloma/` or network access to download a supported model on first use.
+The PyTorch 2.0.1 arm64 wheel contains an incorrect x86_64 tag in its internal
+`WHEEL` metadata: `pip check` can report "torch 2.0.1 is not supported on this
+platform". On this Mac its actual libraries are arm64; the DGL sparse check and
+real ligand parameterization pass. This metadata message is distinct from a
+dependency-version conflict. The selected cached model here is Espaloma 0.3.2;
+the Espaloma Python package version is 0.4.0.
+
 ## Quick Start
 
 For a standard soluble protein preparation, no JSON file is required:
@@ -139,6 +173,21 @@ Run the stages enabled in a configuration:
 mojoemd run -c examples/01_vanilla_protein.json
 ```
 
+After supplying real inputs and matching NCAA parameters in all templates, run
+all numbered examples from the CLI:
+
+```bash
+mojoemd doctor
+for config in examples/[0-9][0-9]_*.json; do
+    mojoemd run -c "$config" || break
+done
+```
+
+`run` follows each config's stage flags; most templates request 100 ns production.
+For preparation only, use `mojoemd prepare -c "$config"` in the loop instead.
+The fixture-based test command above resolves inputs automatically and forces
+preparation only.
+
 Continue later stages without a JSON file by pointing to the existing run
 directory:
 
@@ -154,6 +203,26 @@ platforms at any time:
 ```bash
 mojoemd doctor
 ```
+
+The command is `mojoemd doctor`. It diagnoses the installation; it does not run
+simulations or execute the examples. The numbered JSON files are templates and
+need receptor/ligand paths and, where applicable, matching NCAA identities and
+parameters. Paths in each JSON are relative to that JSON file.
+
+From the repository root, check every example profile using the committed small
+software fixtures (preparation only):
+
+```bash
+python tests/example_preparation.py --inputs fixtures --output dev/example-check-new --jobs 2
+```
+
+Choose a new output directory each time. This explicitly substitutes small
+peptides, synthetic ethanol, AIB parameters, and a synthetic copper site; it does
+not validate biological membrane placement or production dynamics. Exact input
+substitutions and hashes are saved in the output manifest. See
+[the testing guide](tests/README.md#numbered-example-preparation-checks) for the
+original large-input runs and [Mac installation](#apple-silicon-espaloma) for the
+Espaloma compatibility stack.
 
 Run only preparation:
 
@@ -360,13 +429,15 @@ Choose OpenMM's bundled protein parameters through `--protein_ff` or the JSON
 Supported choices:
 
 - Amber14: `amber14/protein.ff14SB.xml`, `amber14/protein.ff15ipq.xml`
-- Amber19: `amber19/protein.ff19SB.xml`, `amber19/protein.ff19ipq.xml`
+- Amber19: `amber19/protein.ff19SB.xml`
 - Older Amber: `amber96.xml`, `amber99sb.xml`, `amber99sbildn.xml`,
   `amber99sbnmr.xml`, `amber03.xml`, `amber10.xml`, `amberfb15.xml`
 - CHARMM: `charmm36.xml`, `charmm36_2024.xml` (includes CHARMM36m protein parameters)
 
 Availability depends on the installed OpenMM version; preparation checks that
 selected XML files exist. Polarizable force fields are not supported by this pipeline.
+`ff19ipq` is no longer offered: upstream removed this unpublished/incomplete
+parameter set ([release notes](https://github.com/openmm/openmmforcefields/releases/tag/0.15.1)).
 
 Amber14/Amber19 component models default to `amber14/tip3pfb.xml` water.
 Legacy Amber models default to standalone `tip3p.xml`, since their protein XML
@@ -399,7 +470,7 @@ in the [2026-10-01 validation](tests/validation_2026-10-01.md).
 | Protein selection | Protein only | Ligand | Membrane | Membrane + ligand | GLYCAM and NCAA combinations |
 | --- | --- | --- | --- | --- | --- |
 | ff14SB, ff19SB | Tested | Tested, both ligand methods | Tested | Tested, both ligand methods | All 16 on/off combinations of glycan, membrane, ligand and NCAA tested; NCAA uses the supplied AIB parameters |
-| ff15ipq, ff19ipq | Tested | Tested, both ligand methods | Tested | Tested, both ligand methods | GLYCAM blocked; NCAA requires compatible custom parameters and is not covered by this matrix |
+| ff15ipq | Tested | Tested, both ligand methods | Tested | Tested, both ligand methods | GLYCAM blocked; NCAA requires compatible custom parameters and is not covered by this matrix |
 | Legacy Amber: amber96, amber99sb, amber99sbildn, amber99sbnmr, amber03, amber10, amberfb15 | Tested | Tested, both ligand methods | Tested | Tested, both ligand methods | GLYCAM blocked; NCAA requires compatible custom parameters and is not covered by this matrix |
 | CHARMM36, CHARMM36 2024 | Tested | Blocked | Tested | Blocked | GLYCAM and NCAA blocked |
 
@@ -426,7 +497,7 @@ The current GLYCAM module supports these protein force-field selections:
 | --- | --- |
 | `amber14/protein.ff14SB.xml` | Allowed; default. XML loading with GLYCAM tested. |
 | `amber19/protein.ff19SB.xml` | Allowed. XML loading with GLYCAM tested. |
-| `amber14/protein.ff15ipq.xml`, `amber19/protein.ff19ipq.xml` | Blocked: the GLYCAM XML references protein atom types absent from IPQ. |
+| `amber14/protein.ff15ipq.xml` | Blocked: the GLYCAM XML references protein atom types absent from IPQ. |
 | `charmm36.xml`, `charmm36_2024.xml` | Blocked: CHARMM uses different residue templates and nonbonded 1-4 scaling from the current GLYCAM module. |
 | Legacy Amber selections | Blocked: unsupported by the current GLYCAM preparation path. |
 

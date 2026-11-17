@@ -2,11 +2,27 @@
 
 from pathlib import Path
 import unittest
+import runpy
+from unittest.mock import patch
 
 from mojoemd.api import _load_engine
 
 
 engine = _load_engine()
+
+
+class OptionalLigandDependencyTests(unittest.TestCase):
+    def test_missing_openff_namespace_does_not_break_module_import(self):
+        from mojoemd.chemistry import ligands
+        def missing_namespace(name):
+            if name == 'openff':
+                return None
+            if name.startswith('openff.'):
+                raise ModuleNotFoundError('openff')
+            raise AssertionError(f'Unexpected dependency lookup: {name}')
+        with patch('importlib.util.find_spec', side_effect=missing_namespace):
+            namespace = runpy.run_path(ligands.__file__)
+        self.assertFalse(namespace['_has_openff'])
 
 
 @unittest.skipUnless(engine._has_openff, "Requires optional ligand dependencies")

@@ -32,14 +32,14 @@ python tests/preparation_matrix.py --suite stress
 python tests/preparation_matrix.py --suite all --jobs 2
 ```
 
-The matrix contains 121 cases with both ligand methods enabled:
+The matrix contains 114 cases with both ligand methods enabled:
 
 | Coverage | Cases |
 | --- | ---: |
 | ff14SB and ff19SB: all 16 on/off combinations of glycan, membrane, ligand and NCAA modules; ligand cases use both SMIRNOFF and Espaloma | 48 |
-| Other nine Amber protein models: plain protein, ligand, membrane and membrane–ligand; ligand cases use both methods | 54 |
+| Other eight Amber protein models: plain protein, ligand, membrane and membrane–ligand; ligand cases use both methods | 48 |
 | Both CHARMM releases: plain protein and membrane | 4 |
-| Expected early rejections: unsupported GLYCAM models and CHARMM ligand/NCAA combinations | 15 |
+| Expected early rejections: unsupported GLYCAM models and CHARMM ligand/NCAA combinations | 14 |
 
 NCAA fixtures use the existing Amber SB-compatible AIB parameters. They do not
 assert that those parameters can be reused with IPQ or legacy Amber. Module
@@ -132,6 +132,23 @@ See [the migration record](../REFACTOR.md) for commands and limits.
 
 
 ## Numbered example preparation checks
+
+On a fresh checkout or a Mac without the large development inputs, run:
+
+```bash
+mojoemd doctor
+python tests/example_preparation.py --inputs fixtures --output dev/example-check-new --jobs 2
+```
+
+This explicitly maps all 11 profiles to committed small fixtures, preserving the
+enabled modules and ligand methods. NCAA placeholders become AIB. The metal case
+uses a synthetic copper/peptide contact; the membrane case uses a truncated peptide
+and ethanol. These exercise software behavior, not biological coordination,
+binding, membrane orientation, or dynamics. The original JSON templates are not
+modified. The manifest records every substitution. `doctor` diagnoses dependencies;
+the Python command performs preparation and retained-chemistry/energy checks.
+The example runner exercises `mojoemd prepare`'s CLI implementation by default;
+use `--frontend api` to exercise the Python helper instead.
 
 `python tests/example_preparation.py --output dev/example-check-new --jobs 2`
 runs all 11 numbered example templates with recorded input substitutions, using

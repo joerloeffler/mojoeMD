@@ -104,6 +104,12 @@ ignored `dev/`; tests and small fixtures are now visible to version control.
 
 ## Separate future work
 
+November 17 maintenance intentionally removes `ff19ipq` from both engines'
+selectable models because upstream withdrew the incomplete parameter set. Both
+engines also guard the optional `openff` parent namespace before looking for its
+toolkit, allowing core-only installations to import without that extra. The
+legacy and modular chemistry/protocol function parity gate remains in place.
+
 Changing ligand force fields or charge methods, migrating the environment,
 adding BioEmu2, and changing membrane equilibration physics are separate changes.
 

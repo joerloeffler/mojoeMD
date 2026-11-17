@@ -1,12 +1,14 @@
 """Run every numbered example with explicitly mapped local inputs, preparation only.
 
 Examples are templates: originals are preserved and every input/stage/output
-substitution is recorded. Large inputs are local development assets, not fixtures
-shipped with the repository. No equilibration or production is permitted.
+substitution is recorded. Choose large local development inputs (default) or
+committed small software fixtures with --inputs fixtures. No equilibration or
+production is permitted.
 """
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
+from importlib.metadata import PackageNotFoundError, version
 import json
 import os
 from pathlib import Path
@@ -22,7 +24,18 @@ def digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def resolved_examples():
+def software_versions():
+    versions = {}
+    for name in ('openmm', 'openmmforcefields', 'openff-toolkit', 'espaloma',
+                 'torch', 'dgl', 'numpy', 'rdkit', 'mdtraj'):
+        try:
+            versions[name] = version(name)
+        except PackageNotFoundError:
+            versions[name] = 'missing'
+    return versions
+
+
+def resolved_examples(inputs='local'):
     glycan = ROOT / 'dev/refactor_retests/ncaa_glycan/AiB_test_AIB_minimized.pdb'
     glycan_xml = ROOT / 'dev/refactor_retests/ncaa_glycan/ffxml/AIB.xml'
     ncaa = ROOT / 'dev/refactor_retests/ncaa/5MU0.pdb'
@@ -37,7 +50,24 @@ def resolved_examples():
         config = dict(original)
         number = int(example.name[:2])
         notes = []
-        if number == 11:
+        if inputs == 'fixtures':
+            fixtures = ROOT / 'tests/fixtures/preparation'
+            receptor = ('glycoprotein' if config.get('glycoprotein') else 'protein')
+            if config.get('ncaa'):
+                receptor += '_ncaa'
+                config.update(ncaa_resnames=['AIB'], ncaa_ffxml=[str(fixtures / 'AIB.xml')])
+            if number == 10:
+                receptor = 'protein_metal'
+            config['receptor'] = str(fixtures / f'{receptor}.pdb')
+            if config.get('ligand'):
+                config['ligand'] = str(test_ligand)
+            config['solvent_padding'] = 1.0
+            if config.get('membrane'):
+                config['membrane_center_z'] = 5.0
+            notes.append('Committed small software fixtures; truncated peptides and synthetic ethanol, not biological binding or membrane models.')
+            if number == 10:
+                notes.append('Synthetic copper 2.3 A from ASN OD1 tests metal retention and restraints; not a biological coordination site.')
+        elif number == 11:
             config.update(receptor=str(membrane), ligand=str(membrane_ligand))
             notes.append('Matching membrane receptor and ligand from dev/membrane; coordinates unchanged.')
         elif config.get('glycoprotein'):
@@ -88,13 +118,18 @@ def main():
     parser.add_argument('--output', type=Path, default=ROOT / 'dev/modular_prep_check')
     parser.add_argument('--jobs', type=int, default=2)
     parser.add_argument('--timeout', type=float, default=3600)
+    parser.add_argument('--inputs', choices=('local', 'fixtures'), default='local',
+                        help='local: original large development inputs; fixtures: committed small software fixtures')
+    parser.add_argument('--frontend', choices=('cli', 'api'), default='cli',
+                        help='Exercise the installed CLI implementation (default) or Python API')
     args = parser.parse_args()
     if args.jobs < 1 or args.timeout <= 0:
         parser.error('jobs and timeout must be positive')
-    cases = resolved_examples()
+    cases = resolved_examples(args.inputs)
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
-    manifest = {'backend': 'modular', 'stages': ['prepare'], 'python': sys.version,
+    manifest = {'backend': 'modular', 'frontend': args.frontend, 'inputs': args.inputs,
+        'stages': ['prepare'], 'python': sys.version, 'software_versions': software_versions(),
         'executable': sys.executable, 'examples': [meta for _, meta in cases],
         'output_policy': 'Each example writes to <case>/output; original output_dir is ignored.',
         'sources_sha256': {str(p.relative_to(ROOT)): digest(p) for p in sorted((ROOT / 'mojoemd').rglob('*.py'))}}
@@ -104,7 +139,7 @@ def main():
     print(f'Running all {len(cases)} resolved examples, preparation only -> {output}', flush=True)
     reports = []
     with ThreadPoolExecutor(max_workers=args.jobs) as executor:
-        futures = {executor.submit(run_case, case, output, args.timeout): (case, meta) for case, meta in cases}
+        futures = {executor.submit(run_case, case, output, args.timeout, args.frontend): (case, meta) for case, meta in cases}
         for future in as_completed(futures):
             case, meta = futures[future]
             try:
@@ -117,7 +152,8 @@ def main():
             print(f"{report['status'].upper()}: {case.name}" + (f" — {report['error']}" if report.get('error') else ''), flush=True)
     # The malformed local ligand must stay rejected; never infer/repair its chemistry.
     from mojoemd.chemistry.ligands import prepare_ligand
-    malformed = ROOT / 'dev/inputs/ligand.sdf'
+    malformed = ROOT / ('tests/fixtures/preparation/invalid_aromatic_ligand.sdf'
+                        if args.inputs == 'fixtures' else 'dev/inputs/ligand.sdf')
     try:
         prepare_ligand(malformed)
     except ValueError as error:

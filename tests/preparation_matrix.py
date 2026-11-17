@@ -249,7 +249,15 @@ def worker(case_file: Path) -> int:
                 assert not (directory / "output").exists(), "Rejection occurred after preparation started"
                 report.update(status="passed", expected_rejection=case["rejection"])
             else:
-                result = prepare_system(directory / "config.json", backend=BACKEND)
+                if case.get("frontend", "api") == "cli":
+                    from mojoemd.cli import main as cli_main
+                    from mojoemd.api import _result
+                    status = cli_main(["prepare", "--config", str(directory / "config.json"),
+                                       "--backend", BACKEND])
+                    assert status == 0, f"CLI exited {status}"
+                    result = _result(directory / "output", ("prepare",))
+                else:
+                    result = prepare_system(directory / "config.json", backend=BACKEND)
                 assert result.stages == ("prepare",)
                 report.update(validate_outputs(result.output_dir, case["config"]))
                 report["status"] = "passed"
@@ -263,13 +271,13 @@ def worker(case_file: Path) -> int:
     return 0 if report["status"] == "passed" else 1
 
 
-def run_case(case: Case, output: Path, timeout: float) -> dict:
+def run_case(case: Case, output: Path, timeout: float, frontend: str = "api") -> dict:
     directory = output / case.name
     directory.mkdir()  # Never overwrite an earlier result.
     config = dict(case.config, output_dir=str(directory / "output"), prepare=True, equilibrate=False, produce=False)
     (directory / "config.json").write_text(json.dumps(config, indent=2) + "\n")
     case_file = directory / "case.json"
-    case_file.write_text(json.dumps(asdict(case), indent=2) + "\n")
+    case_file.write_text(json.dumps(dict(asdict(case), frontend=frontend), indent=2) + "\n")
     env = dict(os.environ)
     for key in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "OPENMM_CPU_THREADS"):
         env[key] = "2"

@@ -18,6 +18,8 @@ MODULES = {
     "OpenMMForceFields": "openmmforcefields",
     "OpenMMTools": "openmmtools",
     "Espaloma": "espaloma",
+    "PyTorch": "torch",
+    "DGL": "dgl",
     "RDKit": "rdkit",
     "MDTraj": "mdtraj",
     "pandas": "pandas",
@@ -47,12 +49,12 @@ def run_doctor() -> bool:
     healthy = True
 
     try:
-        from .api import _load_engine
+        from .api import DEFAULT_BACKEND, _select_engine
 
-        engine = _load_engine()
+        engine = _select_engine(DEFAULT_BACKEND)
         engine_ok = callable(engine.parse_arguments) and callable(engine.execute_pipeline)
         healthy &= engine_ok
-        print(f"[{'OK' if engine_ok else '!!'}] Pipeline engine: {engine.__file__}")
+        print(f"[{'OK' if engine_ok else '!!'}] Pipeline engine ({DEFAULT_BACKEND}): {engine.__file__}")
     except Exception as exc:
         healthy = False
         print(f"[!!] Pipeline engine: {exc}")
@@ -77,6 +79,27 @@ def run_doctor() -> bool:
         )
         healthy &= path is not None
         print(f"[{'OK' if path else '!!'}] {executable}: {path or 'MISSING'}")
+
+    try:
+        dgl = importlib.import_module("dgl")
+        adjacency = dgl.graph(([0], [1]), num_nodes=2).adj()
+        sparse_ok = adjacency.shape == (2, 2)
+        healthy &= sparse_ok
+        print(f"[{'OK' if sparse_ok else '!!'}] DGL/PyTorch sparse backend: operational")
+    except Exception as exc:
+        healthy = False
+        print(f"[!!] DGL/PyTorch sparse backend: {exc}")
+
+    try:
+        from openff.toolkit.utils import AmberToolsToolkitWrapper
+
+        ambertools_ok = AmberToolsToolkitWrapper.is_available()
+        healthy &= ambertools_ok
+        detail = "available" if ambertools_ok else "unavailable; activate the environment so antechamber and sqm are on PATH"
+        print(f"[{'OK' if ambertools_ok else '!!'}] OpenFF AmberTools charge backend: {detail}")
+    except Exception as exc:
+        healthy = False
+        print(f"[!!] OpenFF AmberTools charge backend: {exc}")
 
     try:
         from openmm import Platform

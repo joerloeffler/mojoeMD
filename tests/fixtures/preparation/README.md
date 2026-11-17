@@ -5,6 +5,10 @@ fragments, not biological membrane models or validated simulation inputs.
 Source selections and the source file hash are recorded in `provenance.json`.
 
 - `protein.pdb`: five standard amino acids, including unglycosylated ASN.
+- `protein_metal.pdb`: the same peptide plus a synthetic Cu ion at
+  (0.689, 2.922, 51.364) Angstrom, 2.3 Angstrom from ASN A:64 OD1. Tests ion
+  retention and coordination restraints, not a biological metal site or a
+  validated copper force field. All peptide coordinates are unchanged.
 - `glycoprotein.pdb`: the same peptide with its source NAG dimer covalently
   attached to ASN. Both sugars and the ASN–sugar and sugar–sugar bonds must survive.
 - `protein_ncaa.pdb`, `glycoprotein_ncaa.pdb`: add a separate five-residue peptide

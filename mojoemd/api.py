@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import importlib.util
+import re
 from pathlib import Path
 import sys
 from typing import Any, Iterable, Sequence
@@ -62,7 +63,12 @@ def _result(output_dir: str | Path, stages: Iterable[str]) -> PipelineResult:
         path = directory / name
         return path if path.exists() else None
 
-    production_segments = sorted(directory.glob("production_[0-9][0-9][0-9].dcd"))
+    segment_pattern = re.compile(r"production_(\d+)\.dcd")
+    production_segments = sorted(
+        (path for path in directory.glob("production_*.dcd")
+         if segment_pattern.fullmatch(path.name)),
+        key=lambda path: int(segment_pattern.fullmatch(path.name).group(1)),
+    )
     latest_production = production_segments[-1] if production_segments else existing("production.dcd")
 
     return PipelineResult(

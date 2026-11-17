@@ -86,7 +86,6 @@ PROTEIN_FORCE_FIELDS = (
     "amber14/protein.ff14SB.xml",
     "amber14/protein.ff15ipq.xml",
     "amber19/protein.ff19SB.xml",
-    "amber19/protein.ff19ipq.xml",
     "amber96.xml", "amber99sb.xml", "amber99sbildn.xml",
     "amber99sbnmr.xml", "amber03.xml", "amber10.xml", "amberfb15.xml",
     "charmm36.xml", "charmm36_2024.xml",

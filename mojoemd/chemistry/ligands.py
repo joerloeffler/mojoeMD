@@ -8,7 +8,8 @@ import logging
 
 
 _has_openff = (
-    importlib.util.find_spec("openff.toolkit") is not None
+    importlib.util.find_spec("openff") is not None
+    and importlib.util.find_spec("openff.toolkit") is not None
     and importlib.util.find_spec("rdkit") is not None
     and importlib.util.find_spec("openmmforcefields") is not None
 )

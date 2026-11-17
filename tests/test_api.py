@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from mojoemd import PipelineExecutionError
-from mojoemd.api import _load_engine, equilibrate_system, prepare_system, run_pipeline, run_production
+from mojoemd.api import _load_engine, _result, equilibrate_system, prepare_system, run_pipeline, run_production
 from mojoemd.cli import build_parser, main
 
 
@@ -34,6 +34,13 @@ class FakeEngine:
 
 
 class PipelineApiTests(unittest.TestCase):
+    def test_result_returns_latest_segment_beyond_three_digits(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ('production_999.dcd', 'production_1000.dcd', 'production_other.dcd'):
+                (root / name).touch()
+            self.assertEqual(_result(root, ('produce',)).production_dcd, root.resolve() / 'production_1000.dcd')
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
